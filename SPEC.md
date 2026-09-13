@@ -39,28 +39,75 @@ widgets partagés de NextUI, réglages persistés en `key=value` dans `$SHARED_U
 
 ## Écrans
 
-### 1. Écran d'accueil — Liste des jobs
+### 0. Écran d'accueil simplifié (affiché à l'ouverture du pak)
 
-Liste des jobs de sync configurés, affichés avec un widget liste standard NextUI (pill list) :
+Premier écran vu au lancement du pak — une seule action mise en avant, pas de gestion de détail.
 
 ```
 Samba Sync
+─────────────────────────────
+
+        ▶  Tout synchroniser
+
+  3 jobs configurés · dernière synchro : il y a 2h
+
+A  Tout synchroniser   Y  Gérer les jobs   B  Quitter
+```
+
+- **A** : lance la synchronisation de **tous** les jobs configurés, l'un après l'autre (voir "Flux
+  Tout synchroniser" ci-dessous) → écran 3bis (Aperçu groupé) si "Vérifier avant de synchroniser"
+  est activé, sinon directement écran 4 (Progression, variante multi-jobs).
+- **Y** : ouvre l'écran 1 (Gestion des jobs) pour créer/éditer/supprimer ou lancer un job
+  individuellement.
+- **B** : quitte le pak.
+- Le texte sous le bouton résume l'état global : nombre de jobs configurés, date de la dernière
+  synchro effectuée (tous jobs confondus) et son statut si en erreur (ex. "dernière synchro : il y
+  a 2h · 1 job en erreur").
+- Aucun job configuré → "Tout synchroniser" est inactif/grisé, message invitant à appuyer sur Y
+  pour créer un premier job.
+
+#### Flux "Tout synchroniser"
+
+- Exécute chaque job configuré, dans l'ordre de la liste, quel que soit son mode (Ajout simple ou
+  Miroir) — les jobs Miroir sont inclus, pas de traitement à part.
+- Si le réglage "Vérifier avant de synchroniser" est activé : avant de lancer quoi que ce soit,
+  l'écran 3bis (Aperçu groupé) calcule et affiche, pour l'ensemble des jobs, le total de fichiers à
+  copier/volume, et — mis en avant séparément — la liste cumulée des fichiers qui seraient
+  **supprimés** par les jobs en mode Miroir. Une confirmation unique valide l'ensemble ; annuler
+  n'exécute rien du tout.
+- Écran 4 (Progression), variante multi-jobs : en plus du détail du job en cours (fichier courant,
+  %, volume), affiche sa position dans la file (ex. "Job 2/3 : Roms SNES").
+- Si un job échoue, l'erreur est mémorisée mais **n'interrompt pas** les jobs suivants de la file ;
+  l'échec apparaît dans le résumé final de ce job.
+- **B** pendant l'exécution : annule le job en cours **et** les jobs restants de la file (pas
+  seulement le job courant) → retour écran 0.
+- Écran 5bis (Résumé), variante multi-jobs : un total agrégé en haut, puis le détail
+  copiés/ignorés/supprimés/erreurs par job.
+
+### 1. Écran Gestion des jobs — Liste des jobs
+
+Accessible depuis l'écran 0 (touche Y). Liste des jobs de sync configurés, affichés avec un widget
+liste standard NextUI (pill list) :
+
+```
+Gestion des jobs
 ─────────────────────────────
 ▸ Roms GBA  [Miroir]     nas.local/Roms/GBA
   Roms SNES               nas.local/Roms/SNES
   Bios        [Miroir]    nas.local/System/Bios
 
-A  Lancer   X  Ajouter   Y  Éditer   MENU  Réglages   B  Quitter
+A  Lancer   X  Ajouter   Y  Éditer   MENU  Réglages   B  Retour
 ```
 
 - Chaque entrée montre : nom du job, hôte + chemin distant (tronqué si trop long), un badge de
   mode (`[Miroir]` si activé, rien en mode Ajout simple), et un badge d'état (dernière sync OK /
   jamais synchronisé / dernière sync en erreur).
-- **A** : lance la sync du job sélectionné → écran 4 (Progression).
+- **A** : lance la sync du job sélectionné uniquement → écran 4 (Progression, job unique).
 - **X** : nouveau job → écran 2.
 - **Y** : éditer le job sélectionné → écran 2 (pré-rempli).
 - **Select/L** (à définir) : supprimer le job sélectionné (avec confirmation).
 - **MENU** : Réglages globaux → écran 6.
+- **B** : retour à l'écran 0 (accueil simplifié).
 - Liste vide → message d'état vide invitant à appuyer sur X pour créer un premier job.
 
 ### 2. Écran Ajouter/Éditer un job
@@ -110,9 +157,35 @@ X  Nouveau dossier   A  Entrer   Y  Choisir ce dossier
 - **X** : crée un nouveau sous-dossier (saisie du nom via clavier virtuel).
 - **B** : remonte d'un niveau (ou annule si à la racine).
 
+### 3bis. Écran Aperçu (avant sync)
+
+Affiché uniquement si le réglage "Vérifier avant de synchroniser" est activé, juste avant le
+démarrage réel d'une sync — que ce soit un job unique (lancé depuis l'écran 1) ou "Tout
+synchroniser" (lancé depuis l'écran 0, auquel cas l'aperçu agrège tous les jobs concernés).
+
+```
+Aperçu de la synchronisation
+─────────────────────────────
+À copier : 84 fichiers (340 Mo)
+
+🗑 À supprimer (jobs en mode Miroir) :
+  Roms GBA : 5 fichiers
+  Bios     : 2 fichiers
+
+A  Lancer la synchronisation   B  Annuler
+```
+
+- Job unique : liste/volume à copier pour ce job, et si le job est en mode Miroir, la section
+  `🗑 À supprimer` correspondante.
+- "Tout synchroniser" : les totaux sont cumulés sur tous les jobs ; la section `🗑 À supprimer` ne
+  liste que les jobs en mode Miroir concernés (un sous-total par job), pour que les suppressions
+  ne soient jamais noyées dans le volume global à copier.
+- **A** : lance réellement la copie (et les suppressions le cas échéant) → écran 4.
+- **B** : annule, rien n'est exécuté → retour à l'écran d'origine (0 ou 1).
+
 ### 4. Écran Progression de la sync
 
-Affiché pendant l'exécution d'un job.
+Affiché pendant l'exécution d'un job (ou d'une file de jobs pour "Tout synchroniser").
 
 ```
 Synchronisation : Roms GBA (Miroir)
@@ -132,13 +205,18 @@ B  Annuler
   local → copie fichier par fichier (nom du fichier courant + barre de progression globale, nombre
   de fichiers et volume) → **si mode Miroir**, suppression des fichiers locaux obsolètes en
   dernière étape (après que la copie a réussi, jamais avant).
-- Si le réglage "Vérifier avant de synchroniser" est activé, l'étape de comparaison débouche
-  d'abord sur l'écran d'aperçu (voir écran 6) avant que la copie/suppression ne démarre réellement.
-- **B** : annule proprement la sync en cours (ferme la connexion SMB) → retour écran 1 avec badge
-  "Annulé". Ce qui a déjà été copié reste en place ; si l'annulation intervient pendant la phase de
-  suppression (mode Miroir), les suppressions déjà effectuées ne sont pas annulées, celles restantes
-  ne sont pas exécutées.
-- En cas d'erreur bloquante (perte réseau, auth échouée, partage introuvable) → écran 5.
+- Cette étape (écran 4) n'est atteinte qu'après validation de l'écran 3bis (Aperçu) si le réglage
+  correspondant est activé ; sinon elle démarre directement au lancement de la sync.
+- Variante multi-jobs (déclenchée depuis "Tout synchroniser") : une ligne supplémentaire indique la
+  position dans la file (ex. "Job 2/3 : Roms SNES") ; le reste de l'affichage (fichier courant, %,
+  volume, suppression) est identique, appliqué au job en cours.
+- **B** : annule proprement la sync en cours (ferme la connexion SMB) → retour à l'écran d'origine
+  (écran 1 pour un job unique, écran 0 pour "Tout synchroniser") avec badge "Annulé". Ce qui a déjà
+  été copié reste en place ; si l'annulation intervient pendant la phase de suppression (mode
+  Miroir), les suppressions déjà effectuées ne sont pas annulées, celles restantes ne sont pas
+  exécutées. En mode multi-jobs, annuler arrête aussi tous les jobs restants de la file.
+- En cas d'erreur bloquante sur un job (perte réseau, auth échouée, partage introuvable) : job
+  unique → écran 5 ; multi-jobs → l'erreur est mémorisée et les jobs suivants continuent.
 - À la fin → écran 5bis (résumé).
 
 ### 5. Écran Erreur
@@ -164,6 +242,8 @@ A/B  Retour
 
 ### 5bis. Écran Résumé (fin de sync, succès ou partiel)
 
+Job unique :
+
 ```
 Synchronisation terminée : Roms GBA (Miroir)
 ─────────────────────────────
@@ -175,10 +255,26 @@ Synchronisation terminée : Roms GBA (Miroir)
 A/B  Retour
 ```
 
-- La ligne "fichiers supprimés localement" n'apparaît que pour les jobs en mode Miroir.
+Variante multi-jobs ("Tout synchroniser") : total agrégé en haut, puis détail par job.
+
+```
+Synchronisation terminée : 3 jobs
+─────────────────────────────
+✔ 210 fichiers copiés (780 Mo) · 🗑 7 supprimés · ✘ 1 erreur
+
+  Roms GBA  (Miroir)   ✔ 84 copiés · 🗑 5 supprimés
+  Roms SNES            ✔ 126 copiés
+  Bios      (Miroir)   ✘ erreur (voir détail)
+
+A/B  Retour
+```
+
+- La ligne/le badge "fichiers supprimés localement" n'apparaît que pour les jobs en mode Miroir.
 - Si des erreurs ponctuelles sont survenues sur certains fichiers (copie ou suppression, pas
-  bloquantes pour le job entier) : liste déroulante des fichiers concernés avec la raison.
-- Met à jour le badge d'état du job affiché à l'écran 1 (date/heure de dernière sync).
+  bloquantes pour le job entier), ou si un job entier a échoué (variante multi-jobs) : liste
+  déroulante des éléments concernés avec la raison.
+- Met à jour le badge d'état de chaque job affiché à l'écran 1 (date/heure de dernière sync), ainsi
+  que le résumé global affiché sur l'écran 0.
 
 ### 6. Écran Réglages globaux
 
@@ -194,20 +290,18 @@ A  Basculer/éditer   B  Retour
 
 - **Écraser les fichiers existants** : Non (défaut, skip si même nom+taille) / Oui (toujours
   retélécharger).
-- **Vérifier avant de synchroniser** : si Oui, un aperçu est montré avant de lancer la copie
-  réelle, avec confirmation explicite (A pour lancer, B pour annuler) :
-  - liste des fichiers à copier + volume total ;
-  - **pour un job en mode Miroir**, une section séparée liste les fichiers qui seront **supprimés**
-    localement, clairement distinguée (ex. préfixe `🗑`) pour que la suppression ne soit jamais une
-    surprise.
-  - Si ce réglage est sur Non, la sync (copies et éventuelles suppressions en mode Miroir) démarre
-    directement sans aperçu ni confirmation intermédiaire.
+- **Vérifier avant de synchroniser** : si Oui, l'écran 3bis (Aperçu) s'affiche avant de lancer la
+  copie réelle (job unique ou "Tout synchroniser"), avec confirmation explicite. Si ce réglage est
+  sur Non, la sync (copies et éventuelles suppressions en mode Miroir) démarre directement sans
+  aperçu ni confirmation intermédiaire.
 - **Timeout réseau** : délai avant d'abandonner une connexion qui ne répond pas.
 
 ---
 
 ## Features (résumé)
 
+- Écran d'accueil simplifié au lancement du pak avec une action "Tout synchroniser" qui exécute
+  tous les jobs à la suite (job unique et gestion CRUD relégués à un écran secondaire).
 - Gestion de plusieurs jobs de sync (CRUD : créer / éditer / supprimer / lister).
 - Connexion SMB avec authentification optionnelle (guest ou utilisateur/mot de passe).
 - Test de connexion sans copie, depuis l'écran d'édition d'un job.
