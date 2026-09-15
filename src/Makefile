@@ -41,6 +41,14 @@ NEXTUI_PLATFORM ?= ../../$(PLATFORM)/platform
 # Pulls in the per-platform CFLAGS/LDFLAGS (SDL2/GLES linking, -DUSE_SDL2,
 # PREFIX/PREFIX_LOCAL include+lib paths) that every NextUI pak builds
 # against -- see e.g. workspace/all/parental/makefile for the precedent.
+# desktop/platform/makefile.env branches on UNAME_S (set by NextUI's own
+# makefile.native when it's the one driving the build); our Makefile is
+# invoked standalone by build-desktop.sh, so without this the Linux/Darwin
+# branches (pkg-config cflags, -DUSE_GL -DGL_GLEXT_PROTOTYPES) are silently
+# skipped and GL calls in platform.c fail to compile with implicit-declaration
+# errors. Device platforms' makefile.env don't key off UNAME_S, so this is a
+# no-op for tg5040/tg5050.
+UNAME_S := $(shell uname -s)
 include $(NEXTUI_PLATFORM)/makefile.env
 SDL?=SDL
 
