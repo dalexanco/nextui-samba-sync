@@ -1,0 +1,14 @@
+.DS_Store
+log.txt
+.vscode/
+.claude/
+
+src/build/
+bin/tg5040/sambasync.elf
+bin/tg5050/sambasync.elf
+bin/desktop/sambasync.elf
+dist/
+
+lib/libsmb2/build-*/
+
+.nextui-workspace

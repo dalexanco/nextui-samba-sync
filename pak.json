@@ -1,0 +1,17 @@
+{
+  "name": "Samba Sync",
+  "version": "v0.1.0",
+  "type": "TOOL",
+  "description": "Pull-sync folders from Samba/SMB shares declared in a config file onto the SD card.",
+  "author": "Dalexanco",
+  "repo_url": "https://github.com/dalexanco/nextui-samba-sync",
+  "release_filename": "Samba.Sync.pak.zip",
+  "platforms": [
+    "tg5040",
+    "tg5050"
+  ],
+  "changelog": {
+    "v0.1.0": "Project skeleton: boots, links libsmb2, no sync functionality yet."
+  },
+  "screenshots": []
+}
