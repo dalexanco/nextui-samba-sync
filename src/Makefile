@@ -71,7 +71,7 @@ INCDIR = -I. -I$(NEXTUI_ALL)/common -I$(NEXTUI_PLATFORM) -I$(SMB2_DIR)/include
 # collide with another's, and so the two source dirs never collide with each
 # other despite both being reached through a variable prefix.
 
-LOCAL_SRC     = main.c ui.c servers.c jobs.c screens/home.c screens/jobs_list.c
+LOCAL_SRC     = main.c ui.c servers.c jobs.c smb_client.c screens/home.c screens/jobs_list.c screens/servers_list.c
 COMMON_SRC    = utils.c api.c config.c scaler.c
 PLATFORM_SRC  = platform.c
 

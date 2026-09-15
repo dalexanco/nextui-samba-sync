@@ -11,6 +11,10 @@
 typedef enum {
 	JOBS_LIST_ACTION_NONE,
 	JOBS_LIST_ACTION_BACK,
+	// Temporary: SPEC.md reaches écran 1bis (Serveurs) via écran 6
+	// (Réglages), which doesn't exist yet -- MENU shortcuts there
+	// directly for now (see main.c).
+	JOBS_LIST_ACTION_SERVERS,
 } JobsListAction;
 
 // Clamps/resets the selected row; call when entering this screen.

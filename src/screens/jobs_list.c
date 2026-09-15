@@ -24,6 +24,7 @@ JobsListAction JobsList_input(int *dirty)
 	int count = jobs_count();
 
 	if (PAD_justPressed(BTN_B)) return JOBS_LIST_ACTION_BACK;
+	if (PAD_justPressed(BTN_MENU)) return JOBS_LIST_ACTION_SERVERS;
 
 	if (count > 0) {
 		if (PAD_justRepeated(BTN_UP)) {
@@ -100,6 +101,7 @@ void JobsList_render(SDL_Surface *screen, int show_setting)
 		}
 	}
 
+	GFX_blitButtonGroup((char *[]){ "MENU", "SERVEURS", NULL }, 0, screen, 0);
 	GFX_blitButtonGroup((char *[]){ "B", "RETOUR", NULL }, 1, screen, 1);
 	if (show_setting) GFX_blitHardwareHints(screen, show_setting);
 }

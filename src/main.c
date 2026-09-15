@@ -2,10 +2,12 @@
 // card. Servers are declared offline in Samba Servers/<name>/server.txt;
 // see ../SPEC.md for the UX and ../docs/ARCHITECTURE.md for the design.
 //
-// Écran 0 (accueil) and Écran 1 (gestion des jobs) are wired below; the
-// rest of the screens in docs/ARCHITECTURE.md (assistant, browse, progress,
-// settings...) don't exist yet, so "Tout synchroniser"/A/X/Y/MENU on those
-// two screens are only as active as their backing modules allow.
+// Écran 0 (accueil), Écran 1 (gestion des jobs) and Écran 1bis (serveurs,
+// diagnostic lecture seule) are wired below; the rest of the screens in
+// docs/ARCHITECTURE.md (assistant, browse, progress, settings...) don't
+// exist yet, so "Tout synchroniser"/X/Y on écran 1 are only as active as
+// their backing modules allow. Écran 1bis is reached via MENU on écran 1
+// as a temporary shortcut until écran 6 (Réglages) exists as the real hub.
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -23,6 +25,7 @@
 #include "jobs.h"
 #include "screens/home.h"
 #include "screens/jobs_list.h"
+#include "screens/servers_list.h"
 
 static bool quit = false;
 
@@ -49,6 +52,7 @@ static void checkLibsmb2Linked(void)
 typedef enum {
 	SCREEN_HOME,
 	SCREEN_JOBS_LIST,
+	SCREEN_SERVERS_LIST,
 } Screen;
 
 int main(int argc, char *argv[])
@@ -96,6 +100,19 @@ int main(int argc, char *argv[])
 				active_screen = SCREEN_HOME;
 				dirty = 1;
 			}
+			else if (action == JOBS_LIST_ACTION_SERVERS) {
+				ServersList_reset();
+				active_screen = SCREEN_SERVERS_LIST;
+				dirty = 1;
+			}
+			break;
+		}
+		case SCREEN_SERVERS_LIST: {
+			ServersListAction action = ServersList_input(&dirty);
+			if (action == SERVERS_LIST_ACTION_BACK) {
+				active_screen = SCREEN_JOBS_LIST;
+				dirty = 1;
+			}
 			break;
 		}
 		}
@@ -106,6 +123,7 @@ int main(int argc, char *argv[])
 			switch (active_screen) {
 			case SCREEN_HOME: Home_render(screen, show_setting); break;
 			case SCREEN_JOBS_LIST: JobsList_render(screen, show_setting); break;
+			case SCREEN_SERVERS_LIST: ServersList_render(screen, show_setting); break;
 			}
 
 			GFX_flip(screen);
