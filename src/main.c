@@ -2,10 +2,10 @@
 // card. Servers are declared offline in Samba Servers/<name>/server.txt;
 // see ../SPEC.md for the UX and ../docs/ARCHITECTURE.md for the design.
 //
-// This is a project skeleton: it boots, renders a placeholder screen, and
-// links against libsmb2 (proven below by actually calling into it), but has
-// no sync functionality yet. Screens and modules described in
-// docs/ARCHITECTURE.md will be split out of this file as they're built.
+// Écran 0 (accueil) and Écran 1 (gestion des jobs) are wired below; the
+// rest of the screens in docs/ARCHITECTURE.md (assistant, browse, progress,
+// settings...) don't exist yet, so "Tout synchroniser"/A/X/Y/MENU on those
+// two screens are only as active as their backing modules allow.
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -19,6 +19,10 @@
 
 #include "defines.h"
 #include "api.h"
+#include "servers.h"
+#include "jobs.h"
+#include "screens/home.h"
+#include "screens/jobs_list.h"
 
 static bool quit = false;
 
@@ -42,6 +46,11 @@ static void checkLibsmb2Linked(void)
 	}
 }
 
+typedef enum {
+	SCREEN_HOME,
+	SCREEN_JOBS_LIST,
+} Screen;
+
 int main(int argc, char *argv[])
 {
 	(void)argc; (void)argv;
@@ -58,29 +67,46 @@ int main(int argc, char *argv[])
 
 	checkLibsmb2Linked();
 
+	servers_rescan();
+	jobs_rescan();
+
+	Screen active_screen = SCREEN_HOME;
+
 	int dirty = 1;
 	int show_setting = 0;
 	while (!quit) {
 		GFX_startFrame();
 		PAD_poll();
 
-		if (PAD_justPressed(BTN_B)) quit = true;
+		switch (active_screen) {
+		case SCREEN_HOME: {
+			HomeAction action = Home_input();
+			if (action == HOME_ACTION_QUIT) quit = true;
+			else if (action == HOME_ACTION_MANAGE_JOBS) {
+				JobsList_reset();
+				active_screen = SCREEN_JOBS_LIST;
+				dirty = 1;
+			}
+			// HOME_ACTION_SYNC_ALL: no sync_engine yet, nothing to do.
+			break;
+		}
+		case SCREEN_JOBS_LIST: {
+			JobsListAction action = JobsList_input(&dirty);
+			if (action == JOBS_LIST_ACTION_BACK) {
+				active_screen = SCREEN_HOME;
+				dirty = 1;
+			}
+			break;
+		}
+		}
 
 		PWR_update(&dirty, &show_setting, NULL, NULL);
 
 		if (dirty) {
-			GFX_clear(screen);
-
-			SDL_Surface *title = TTF_RenderUTF8_Blended(font.large, "Samba Sync", COLOR_WHITE);
-			if (title) {
-				SDL_BlitSurface(title, NULL, screen, &(SDL_Rect){
-					(screen->w - title->w) / 2,
-					(screen->h - title->h) / 2,
-				});
-				SDL_FreeSurface(title);
+			switch (active_screen) {
+			case SCREEN_HOME: Home_render(screen, show_setting); break;
+			case SCREEN_JOBS_LIST: JobsList_render(screen, show_setting); break;
 			}
-
-			GFX_blitButtonGroup((char *[]){ "B", "EXIT", NULL }, 1, screen, 1);
 
 			GFX_flip(screen);
 			dirty = 0;
