@@ -192,9 +192,37 @@ Extensions au Makefile de gift-code :
   l'UI. Pourrait nécessiter des chunks plus petits, ou un vrai thread
   dédié avec passage de messages (plus proche de ce que fait probablement
   Mortar.pak en Go) si ça pose problème en pratique.
-- **Cross-compilation aarch64 de libsmb2** non confirmée pour ce toolchain
-  NextUI précis — à valider comme premier jalon indépendant avant d'écrire
-  le reste de l'app.
+- **Cross-compilation aarch64 de libsmb2** : ✅ validée le 2026-09-15. Voir
+  section suivante pour le détail.
 - **Noms exacts des variables d'environnement** (`$SHARED_USERDATA_PATH`,
   `$SDCARD_PATH`) supposés stables (utilisés tels quels par gift-code) mais
   pas encore confirmés sur un vrai environnement NextUI.
+
+## Validation : cross-compilation de libsmb2 (2026-09-15)
+
+Testé indépendamment de l'app, en pointant `cmake` directement sur le
+compilateur du conteneur `ghcr.io/loveretro/tg5040-toolchain` (pas besoin du
+workspace NextUI complet, libsmb2 n'a aucune dépendance vers `all/common`) :
+
+- Toolchain confirmée dans l'image : `aarch64-nextui-linux-gnu-gcc`
+  (crosstool-NG 1.25.0, gcc 8.3.0), `cmake` 3.28.3, `make`, `git`.
+- Configure CMake avec un toolchain file minimal
+  (`CMAKE_SYSTEM_NAME=Linux`, `CMAKE_SYSTEM_PROCESSOR=aarch64`,
+  `CMAKE_C_COMPILER=aarch64-nextui-linux-gnu-gcc`),
+  `-DBUILD_SHARED_LIBS=OFF -DENABLE_EXAMPLES=OFF -DENABLE_LIBDCERPC=OFF` :
+  réussi sans intervention. `find_package(GSSAPI)` échoue comme prévu (pas
+  de krb5 dans le sysroot du toolchain) et libsmb2 désactive automatiquement
+  Kerberos/GSSAPI (`ENABLE_LIBKRB5`/`ENABLE_GSSAPI` retombent à `OFF`) — pas
+  besoin de le forcer explicitement.
+- `make` : compile intégralement, produit `libsmb2.a` (~630KB, confirmé
+  ELF `aarch64` via `readelf`/`objdump`).
+- Test de link : petit programme appelant `smb2_init_context()` /
+  `smb2_destroy_context()`, lié contre `libsmb2.a` avec le même compilateur
+  — réussi en dynamique (aucun warning) et en statique (un seul warning
+  attendu sur `getaddrinfo` en lien statique, sans incidence puisque le pak
+  liera dynamiquement comme gift-code).
+
+Conclusion : aucun blocage. `libsmb2` peut être vendoré tel quel et compilé
+avec `ENABLE_LIBDCERPC=OFF` (share-enum minimal suffit pour un client) et
+Kerberos se désactive de lui-même sur ce toolchain — pas de flag
+supplémentaire à ajouter dans le Makefile au-delà de ce qui était déjà prévu.
