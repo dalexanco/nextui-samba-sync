@@ -124,7 +124,7 @@ int main(int argc, char *argv[])
 		}
 		case SCREEN_JOB_WIZARD: {
 			JobWizardAction action = JobWizard_input(&dirty);
-			if (action == JOB_WIZARD_ACTION_CANCEL) {
+			if (action == JOB_WIZARD_ACTION_CANCEL || action == JOB_WIZARD_ACTION_SAVED) {
 				active_screen = SCREEN_JOBS_LIST;
 				dirty = 1;
 			}

@@ -3,17 +3,15 @@
 
 #include "api.h"
 
-// Écran 2a (Nouveau job — Choisir un serveur), étape 1/3 de l'assistant de
-// création de job -- see SPEC.md. Only this step exists so far: écran 2b
-// (parcourir le partage distant) doesn't exist yet, so on a successful
-// connection this screen shows the result inline instead of advancing (same
-// withheld-transition pattern as jobs_list.h's MENU shortcut) -- wire the
-// real transition once smb_client gains smb_list() and this screen grows a
-// browse-remote step.
+// The full job-creation assistant -- écran 2a (choix serveur), 2b (parcours
+// distant), 3 (parcours SD locale) and 2c (récapitulatif), étapes 1 to 3/3
+// of SPEC.md's flow -- as one state machine. See screens/job_wizard.c for
+// the per-step breakdown.
 
 typedef enum {
 	JOB_WIZARD_ACTION_NONE,
 	JOB_WIZARD_ACTION_CANCEL,
+	JOB_WIZARD_ACTION_SAVED, // job written to disk (écran 2c "A Enregistrer")
 } JobWizardAction;
 
 // Clamps/resets the selected row and any connection status; call when

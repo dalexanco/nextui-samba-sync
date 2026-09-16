@@ -5,6 +5,7 @@
 #include "api.h"
 #include "ui.h"
 #include "servers.h"
+#include "jobs.h"
 #include "smb_client.h"
 #include "browse.h"
 #include "local_fs.h"
@@ -19,17 +20,16 @@ typedef enum {
 	CONNECT_FAILED,
 } ConnectStatus;
 
-// Écran 2a, écran 2b and écran 3 (étapes 1/3, 2/3 et 3/3) live in this one
-// file, per docs/ARCHITECTURE.md -- the whole job-creation assistant is one
-// state machine, just like sync_engine.c will be for écran 4. Écran 2c
-// (récapitulatif) doesn't exist yet, so "Y Choisir ce dossier" on écran 3
-// has nowhere to go and is withheld, same as jobs_list.h's pattern for
-// actions without a backing screen yet -- écran 2b's own Y is wired now
-// that its target (écran 3) exists.
+// Écran 2a, écran 2b, écran 3 and écran 2c (étapes 1/3, 2/3, 3/3 puis le
+// récapitulatif) live in this one file, per docs/ARCHITECTURE.md -- the
+// whole job-creation assistant is one state machine, just like
+// sync_engine.c will be for écran 4. All four steps now have a real target,
+// so nothing is withheld anymore in this file.
 typedef enum {
 	WIZARD_STEP_CHOOSE_SERVER,
 	WIZARD_STEP_BROWSE_REMOTE,
 	WIZARD_STEP_BROWSE_LOCAL,
+	WIZARD_STEP_RECAP,
 } WizardStep;
 
 static WizardStep step;
@@ -62,6 +62,17 @@ static BrowseEntry local_entries[BROWSE_MAX_ENTRIES];
 static int local_entry_count = 0;
 static char local_list_error[128];
 
+// Destination chosen at the end of étape 3 (on Y) -- same "set once, not
+// touched by further browsing" role as remote_path above.
+static char local_path[BROWSE_STR_MAX];
+
+// Étape 2c (récapitulatif) state. job_name is resolved once (via
+// jobs_unique_name()) when entering this step, so what's on screen always
+// matches what A "Enregistrer" will actually save.
+static char job_name[JOB_STR_MAX];
+static bool mirror = false;
+static char recap_error[128];
+
 void JobWizard_reset(void)
 {
 	if (session) {
@@ -74,6 +85,8 @@ void JobWizard_reset(void)
 	connect_status = CONNECT_UNTRIED;
 	remote_list_error[0] = '\0';
 	local_list_error[0] = '\0';
+	mirror = false;
+	recap_error[0] = '\0';
 }
 
 // Lists path into remote_entries[]/remote_entry_count and, on success,
@@ -254,6 +267,15 @@ static JobWizardAction inputBrowseLocal(int *dirty)
 		return JOB_WIZARD_ACTION_NONE;
 	}
 
+	if (PAD_justPressed(BTN_Y)) {
+		snprintf(local_path, sizeof(local_path), "%s", local_current_path);
+		jobs_unique_name(sourceFolderName(), job_name);
+		recap_error[0] = '\0';
+		step = WIZARD_STEP_RECAP;
+		*dirty = 1;
+		return JOB_WIZARD_ACTION_NONE;
+	}
+
 	if (local_entry_count > 0) {
 		if (PAD_justRepeated(BTN_UP)) {
 			selected = (selected - 1 + local_entry_count) % local_entry_count;
@@ -274,12 +296,39 @@ static JobWizardAction inputBrowseLocal(int *dirty)
 	return JOB_WIZARD_ACTION_NONE;
 }
 
+static JobWizardAction inputRecap(int *dirty)
+{
+	if (PAD_justPressed(BTN_B)) {
+		step = WIZARD_STEP_BROWSE_LOCAL;
+		*dirty = 1;
+		return JOB_WIZARD_ACTION_NONE;
+	}
+
+	if (PAD_justPressed(BTN_Y)) {
+		mirror = !mirror;
+		*dirty = 1;
+		return JOB_WIZARD_ACTION_NONE;
+	}
+
+	if (PAD_justPressed(BTN_A)) {
+		const Server *server = servers_get(chosen_server_index);
+		if (jobs_create(job_name, server->name, remote_path, local_path, mirror)) {
+			return JOB_WIZARD_ACTION_SAVED;
+		}
+		snprintf(recap_error, sizeof(recap_error), "Impossible d'enregistrer le job");
+		*dirty = 1;
+	}
+
+	return JOB_WIZARD_ACTION_NONE;
+}
+
 JobWizardAction JobWizard_input(int *dirty)
 {
 	switch (step) {
 	case WIZARD_STEP_CHOOSE_SERVER: return inputChooseServer(dirty);
 	case WIZARD_STEP_BROWSE_REMOTE: return inputBrowseRemote(dirty);
 	case WIZARD_STEP_BROWSE_LOCAL:  return inputBrowseLocal(dirty);
+	case WIZARD_STEP_RECAP:         return inputRecap(dirty);
 	}
 	return JOB_WIZARD_ACTION_NONE;
 }
@@ -417,6 +466,43 @@ static void renderBrowseLocal(SDL_Surface *screen, int show_setting)
 	if (show_setting) GFX_blitHardwareHints(screen, show_setting);
 }
 
+static void renderRecapRow(SDL_Surface *screen, const char *label, const char *value, int y)
+{
+	int x = SCALE1(PADDING);
+	UI_renderText(screen, label, font.small, COLOR_DARK_TEXT, x, y);
+	UI_renderText(screen, value, font.medium, COLOR_WHITE, x + SCALE1(140), y);
+}
+
+static void renderRecap(SDL_Surface *screen, int show_setting)
+{
+	UI_renderTitle(screen, "Nouveau job — Récapitulatif", show_setting);
+
+	int content_y = SCALE1(PADDING + PILL_SIZE + BUTTON_MARGIN);
+	int row_h = SCALE1(26);
+
+	const Server *server = servers_get(chosen_server_index);
+
+	renderRecapRow(screen, "Nom", job_name, content_y + 0 * row_h);
+	renderRecapRow(screen, "Serveur", server->name, content_y + 1 * row_h);
+	renderRecapRow(screen, "Distant", remote_path[0] ? remote_path : "/", content_y + 2 * row_h);
+	renderRecapRow(screen, "Local", local_path[0] ? local_path : "/", content_y + 3 * row_h);
+	renderRecapRow(screen, "Mode miroir", mirror ? "[ Oui ]" : "[ Non ]", content_y + 4 * row_h);
+
+	int message_y = content_y + 5 * row_h + SCALE1(12);
+	if (mirror) {
+		UI_renderTextCentered(screen, "Ce mode supprime les fichiers locaux absents du dossier distant",
+		                       font.small, COLOR_DARK_TEXT, message_y);
+		message_y += SCALE1(20);
+	}
+	if (recap_error[0]) {
+		UI_renderTextCentered(screen, recap_error, font.small, COLOR_DARK_TEXT, message_y);
+	}
+
+	GFX_blitButtonGroup((char *[]){ "A", "ENREGISTRER", NULL }, 0, screen, 0);
+	GFX_blitButtonGroup((char *[]){ "Y", "MIROIR", "B", "REVENIR", NULL }, 0, screen, 1);
+	if (show_setting) GFX_blitHardwareHints(screen, show_setting);
+}
+
 void JobWizard_render(SDL_Surface *screen, int show_setting)
 {
 	GFX_clear(screen);
@@ -424,5 +510,6 @@ void JobWizard_render(SDL_Surface *screen, int show_setting)
 	case WIZARD_STEP_CHOOSE_SERVER: renderChooseServer(screen, show_setting); break;
 	case WIZARD_STEP_BROWSE_REMOTE: renderBrowseRemote(screen, show_setting); break;
 	case WIZARD_STEP_BROWSE_LOCAL:  renderBrowseLocal(screen, show_setting); break;
+	case WIZARD_STEP_RECAP:         renderRecap(screen, show_setting); break;
 	}
 }

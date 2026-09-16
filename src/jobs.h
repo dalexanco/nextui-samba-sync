@@ -9,8 +9,9 @@
 // servers_find() -- a job is never deleted automatically if its server goes
 // missing (renamed/removed), see SPEC.md écran 1.
 //
-// This module only reads that config for now: job creation/editing happens
-// through the assistant screens (écran 2a/2b/3), not yet implemented.
+// Creation happens through the assistant screens (écran 2a/2b/3/2c) via
+// jobs_unique_name()/jobs_create() below; editing an existing job isn't
+// implemented yet.
 
 #define MAX_JOBS 64
 #define JOB_STR_MAX 256
@@ -33,5 +34,19 @@ void jobs_rescan(void);
 
 int jobs_count(void);
 const Job *jobs_get(int index);
+
+// Resolves base_name to a name that doesn't collide with any currently
+// loaded job, by appending " (2)", " (3)", ... on collision -- same
+// numeric-suffix convention as local_fs.c's local_create_folder(). Pure
+// computation, no I/O: écran 2c calls this once to show the user the name
+// that A "Enregistrer" will actually save.
+void jobs_unique_name(const char *base_name, char *out_name);
+
+// Persists a new job under JOBS_PATH and reloads the in-memory list (so
+// jobs_count()/jobs_get() reflect it immediately). `name` is expected to
+// already be collision-free (see jobs_unique_name()) -- this only guards
+// against the separate, much rarer case of two distinct names slugifying
+// to the same filename. Returns false if the write fails.
+bool jobs_create(const char *name, const char *server, const char *remote_path, const char *local_path, bool mirror);
 
 #endif
