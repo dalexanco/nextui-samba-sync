@@ -21,6 +21,7 @@ typedef struct {
 	int to_copy_count;
 	long long to_copy_bytes;
 	int to_delete_count; // always 0 unless job->mirror
+	int already_present_count; // remote files matched by path+size, skipped -- écran 5bis's "ignorés"
 } SyncPreview;
 
 // Blocking: connects, lists the whole remote subtree then the whole local

@@ -29,6 +29,7 @@
 #include "screens/job_wizard.h"
 #include "screens/preview.h"
 #include "screens/progress.h"
+#include "screens/summary.h"
 
 static bool quit = false;
 
@@ -59,6 +60,7 @@ typedef enum {
 	SCREEN_JOB_WIZARD,
 	SCREEN_PREVIEW,
 	SCREEN_PROGRESS,
+	SCREEN_SUMMARY,
 } Screen;
 
 int main(int argc, char *argv[])
@@ -144,6 +146,19 @@ int main(int argc, char *argv[])
 				active_screen = SCREEN_JOBS_LIST;
 				dirty = 1;
 			}
+			else if (action == PROGRESS_ACTION_DONE) {
+				Summary_enter(sync_job);
+				active_screen = SCREEN_SUMMARY;
+				dirty = 1;
+			}
+			break;
+		}
+		case SCREEN_SUMMARY: {
+			SummaryAction action = Summary_input(&dirty);
+			if (action == SUMMARY_ACTION_BACK) {
+				active_screen = SCREEN_JOBS_LIST;
+				dirty = 1;
+			}
 			break;
 		}
 		case SCREEN_SERVERS_LIST: {
@@ -174,6 +189,7 @@ int main(int argc, char *argv[])
 			case SCREEN_JOB_WIZARD: JobWizard_render(screen, show_setting); break;
 			case SCREEN_PREVIEW: Preview_render(screen, show_setting); break;
 			case SCREEN_PROGRESS: Progress_render(screen, show_setting); break;
+			case SCREEN_SUMMARY: Summary_render(screen, show_setting); break;
 			}
 
 			GFX_flip(screen);

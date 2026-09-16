@@ -28,6 +28,8 @@ ProgressAction Progress_input(int *dirty)
 
 	if (running) sync_engine_tick();
 
+	if (sync_engine_state() == SYNC_STATE_DONE) return PROGRESS_ACTION_DONE;
+
 	return PROGRESS_ACTION_NONE;
 }
 
@@ -89,10 +91,6 @@ void Progress_render(SDL_Surface *screen, int show_setting)
 			snprintf(delete_line, sizeof(delete_line), "Suppression des fichiers obsolètes : %d / %d",
 			         progress.files_deleted, totals.to_delete_count);
 			UI_renderText(screen, delete_line, font.small, COLOR_WHITE, x, line_y + SCALE1(22));
-		}
-
-		if (state == SYNC_STATE_DONE) {
-			UI_renderText(screen, "Synchronisation terminée", font.medium, COLOR_WHITE, x, line_y + SCALE1(48));
 		}
 	}
 

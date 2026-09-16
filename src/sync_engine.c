@@ -22,6 +22,7 @@ static int to_copy_count = 0;
 static long long to_copy_bytes = 0;
 static BrowseFileEntry to_delete[BROWSE_MAX_FILES];
 static int to_delete_count = 0;
+static int already_present_count = 0;
 
 static SyncState state = SYNC_STATE_IDLE;
 static const Job *active_job = NULL;
@@ -38,6 +39,7 @@ SyncPreview sync_engine_preview(const Job *job)
 	to_copy_count = 0;
 	to_copy_bytes = 0;
 	to_delete_count = 0;
+	already_present_count = 0;
 
 	const Server *server = servers_find(job->server);
 	if (!server) return preview;
@@ -81,6 +83,9 @@ SyncPreview sync_engine_preview(const Job *job)
 			to_copy[to_copy_count++] = remote_files[i];
 			to_copy_bytes += remote_files[i].size;
 		}
+		else if (present) {
+			already_present_count++;
+		}
 	}
 
 	if (job->mirror) {
@@ -102,6 +107,7 @@ SyncPreview sync_engine_preview(const Job *job)
 	preview.to_copy_count = to_copy_count;
 	preview.to_copy_bytes = to_copy_bytes;
 	preview.to_delete_count = to_delete_count;
+	preview.already_present_count = already_present_count;
 	return preview;
 }
 
@@ -269,5 +275,6 @@ SyncPreview sync_engine_totals(void)
 	totals.to_copy_count = to_copy_count;
 	totals.to_copy_bytes = to_copy_bytes;
 	totals.to_delete_count = to_delete_count;
+	totals.already_present_count = already_present_count;
 	return totals;
 }
