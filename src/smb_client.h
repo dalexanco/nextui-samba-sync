@@ -4,10 +4,11 @@
 #include "servers.h"
 #include "browse.h"
 
-// Thin wrapper around libsmb2. smb_connect/smb_disconnect/smb_list exist
-// so far (enough for écran 1bis's "Tester la connexion" and écran 2b's
-// remote browser) -- smb_open_read/smb_read_chunk (see
-// docs/ARCHITECTURE.md) will be added when sync_engine.c needs them.
+// Thin wrapper around libsmb2. smb_connect/smb_disconnect/smb_list/
+// smb_list_files_recursive exist so far (enough for écran 1bis's "Tester la
+// connexion", écran 2b's remote browser and écran 3bis's sync preview) --
+// smb_open_read/smb_read_chunk (see docs/ARCHITECTURE.md) will be added
+// when sync_engine.c needs to actually copy files, not just diff them.
 
 typedef struct SmbSession SmbSession;
 
@@ -30,5 +31,17 @@ void smb_disconnect(SmbSession *session);
 // entries listed (0..max_entries) on success, or -1 on failure (*out_error
 // set); silently truncates past max_entries.
 int smb_list(SmbSession *session, const char *remote_path, BrowseEntry *out, int max_entries, SmbError *out_error);
+
+// Recursively lists every file (not directory) under remote_path, walking
+// the full subtree -- used by sync_engine.c to diff against a local tree
+// for écran 3bis. Each out[].rel_path is relative to remote_path itself,
+// matching local_fs.c's local_list_files_recursive() output shape so the
+// two can be compared by path. Blocking: one smb2_opendir/readdir pass per
+// subfolder found, run synchronously (see sync_engine.c's top comment for
+// why this isn't the tick-based incremental design docs/ARCHITECTURE.md
+// sketches). Returns the number of files found (may be 0) on success, or -1
+// if any directory in the subtree fails to list (*out_error set); silently
+// truncates past max_entries.
+int smb_list_files_recursive(SmbSession *session, const char *remote_path, BrowseFileEntry *out, int max_entries, SmbError *out_error);
 
 #endif

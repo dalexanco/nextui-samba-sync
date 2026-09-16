@@ -36,9 +36,17 @@ JobsListAction JobsList_input(int *dirty)
 			selected = (selected + 1) % count;
 			*dirty = 1;
 		}
+		else if (PAD_justPressed(BTN_A)) {
+			return JOBS_LIST_ACTION_SYNC_JOB;
+		}
 	}
 
 	return JOBS_LIST_ACTION_NONE;
+}
+
+const Job *JobsList_selectedJob(void)
+{
+	return jobs_get(selected);
 }
 
 static void renderRow(SDL_Surface *screen, const Job *job, bool is_selected, int y)
@@ -103,6 +111,7 @@ void JobsList_render(SDL_Surface *screen, int show_setting)
 	}
 
 	GFX_blitButtonGroup((char *[]){ "MENU", "SERVEURS", "X", "AJOUTER", NULL }, 0, screen, 0);
-	GFX_blitButtonGroup((char *[]){ "B", "RETOUR", NULL }, 1, screen, 1);
+	if (count > 0) GFX_blitButtonGroup((char *[]){ "A", "LANCER", "B", "RETOUR", NULL }, 1, screen, 1);
+	else GFX_blitButtonGroup((char *[]){ "B", "RETOUR", NULL }, 1, screen, 1);
 	if (show_setting) GFX_blitHardwareHints(screen, show_setting);
 }

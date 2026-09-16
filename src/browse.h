@@ -4,9 +4,9 @@
 #include <stdbool.h>
 
 // Folder-navigation entry, shared by écran 2b (browse the remote SMB share,
-// screens/job_wizard.c, backed by smb_list() in smb_client.c) and, later,
-// écran 3 (browse the local SD -- not yet implemented). Only the entry type
-// and the path helpers below are factored out for now: a full
+// screens/job_wizard.c, backed by smb_list() in smb_client.c) and écran 3
+// (browse the local SD, backed by local_list() in local_fs.c). Only the
+// entry type and the path helpers below are factored out for now: a full
 // backend-interface abstraction (per docs/ARCHITECTURE.md) isn't worth the
 // indirection until a second caller actually needs it -- same reasoning as
 // ui.h's helpers, factored out once two screens need the exact same code.
@@ -18,6 +18,21 @@ typedef struct {
 	char name[BROWSE_STR_MAX];
 	bool is_dir;
 } BrowseEntry;
+
+// One file found by a recursive listing (smb_client.c's
+// smb_list_files_recursive() / local_fs.c's local_list_files_recursive()),
+// used by sync_engine.c to diff a remote tree against a local one for écran
+// 3bis. Unlike BrowseEntry above (one directory level, dirs only, meant for
+// on-screen navigation) this is one file found anywhere in the recursed
+// subtree, with rel_path relative to the recursion root (e.g.
+// "covers/foo.png") so a remote listing and a local listing can be compared
+// by path regardless of what each root's absolute path happens to be.
+#define BROWSE_MAX_FILES 4096
+
+typedef struct {
+	char rel_path[BROWSE_STR_MAX];
+	long long size;
+} BrowseFileEntry;
 
 // Appends name as a new path segment onto base (a backend-relative path,
 // "" meaning root) into out, inserting a "/" separator unless base is

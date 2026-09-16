@@ -29,4 +29,13 @@ int local_list(const char *path, BrowseEntry *out, int max_entries);
 // already taken, or the create fails for any other reason.
 bool local_create_folder(const char *parent_path, const char *base_name, char *out_name);
 
+// Recursively lists every file under SDCARD_PATH/path, walking the full
+// subtree (dotfiles/.disabled entries hidden, same as local_list()) --
+// used by sync_engine.c to diff against a remote tree for écran 3bis. Each
+// out[].rel_path is relative to path itself, matching smb_client.c's
+// smb_list_files_recursive() output shape so the two can be compared by
+// path. Returns the number of files found (may be 0) on success, or -1 on
+// failure (path missing/unreadable); silently truncates past max_entries.
+int local_list_files_recursive(const char *path, BrowseFileEntry *out, int max_entries);
+
 #endif
