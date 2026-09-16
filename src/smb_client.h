@@ -1,16 +1,23 @@
 #ifndef SMB_CLIENT_H
 #define SMB_CLIENT_H
 
+#include <stdint.h>
+
 #include "servers.h"
 #include "browse.h"
 
 // Thin wrapper around libsmb2. smb_connect/smb_disconnect/smb_list/
-// smb_list_files_recursive exist so far (enough for écran 1bis's "Tester la
-// connexion", écran 2b's remote browser and écran 3bis's sync preview) --
-// smb_open_read/smb_read_chunk (see docs/ARCHITECTURE.md) will be added
-// when sync_engine.c needs to actually copy files, not just diff them.
+// smb_list_files_recursive cover everything read-only (écran 1bis's "Tester
+// la connexion", écran 2b's remote browser, écran 3bis's sync preview);
+// smb_open_read/smb_read_chunk/smb_close_read below are what sync_engine.c
+// uses to actually copy file contents for écran 4.
 
 typedef struct SmbSession SmbSession;
+
+// An open remote file, read sequentially in small chunks by
+// sync_engine_tick() so a single file's transfer never blocks the UI thread
+// for more than one chunk at a time (see docs/ARCHITECTURE.md).
+typedef struct SmbFile SmbFile;
 
 typedef enum {
 	SMB_OK = 0,
@@ -43,5 +50,18 @@ int smb_list(SmbSession *session, const char *remote_path, BrowseEntry *out, int
 // if any directory in the subtree fails to list (*out_error set); silently
 // truncates past max_entries.
 int smb_list_files_recursive(SmbSession *session, const char *remote_path, BrowseFileEntry *out, int max_entries, SmbError *out_error);
+
+// Opens remote_path (share-relative) for sequential reading. NULL + *out_error
+// on failure (not found, permission denied, ...); on success the returned
+// handle must be released with smb_close_read().
+SmbFile *smb_open_read(SmbSession *session, const char *remote_path, SmbError *out_error);
+
+// Reads the next up-to-buf_size bytes from file, continuing from wherever
+// the previous smb_read_chunk() call on the same file left off (no seeking
+// -- sync_engine.c only ever reads a file start to finish). Returns the
+// number of bytes read, 0 at end of file, or -1 on error.
+int smb_read_chunk(SmbFile *file, uint8_t *buf, uint32_t buf_size);
+
+void smb_close_read(SmbFile *file);
 
 #endif

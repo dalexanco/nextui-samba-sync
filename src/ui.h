@@ -1,6 +1,8 @@
 #ifndef UI_H
 #define UI_H
 
+#include <stddef.h>
+
 #include "api.h"
 
 // Small text-rendering helpers shared across screens/*.c, following the
@@ -15,5 +17,10 @@ int UI_renderTextCentered(SDL_Surface *screen, const char *text, TTF_Font *font,
 // Standard pak title bar: name in a black pill, top-left, with the
 // hardware (volume/brightness) icon group to its right.
 void UI_renderTitle(SDL_Surface *screen, const char *name, int show_setting);
+
+// Formats a byte count as a human-readable string ("340 Mo", "12 Ko",
+// "3 o") -- factored out of screens/preview.c once screens/progress.c
+// needed the exact same code for écran 4.
+void UI_formatBytes(long long bytes, char *out, size_t out_size);
 
 #endif

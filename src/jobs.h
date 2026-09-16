@@ -49,4 +49,15 @@ void jobs_unique_name(const char *base_name, char *out_name);
 // to the same filename. Returns false if the write fails.
 bool jobs_create(const char *name, const char *server, const char *remote_path, const char *local_path, bool mirror);
 
+// Persists status ("ok" or "error") and sync_time (unix epoch) as job's
+// last_sync_status/last_sync_time, rewriting its on-disk file and reloading
+// the in-memory list so écran 1's status badge reflects it immediately.
+// job must be a pointer returned by jobs_get() (or anything that passed
+// through it, e.g. JobsList_selectedJob()) -- its on-disk file is recovered
+// by pointer arithmetic against this module's internal jobs[] array, so a
+// pointer obtained any other way is undefined. No-op if job doesn't
+// currently point into that array (shouldn't happen: nothing calls
+// jobs_rescan() while a sync using this is in flight).
+void jobs_set_sync_result(const Job *job, const char *status, int sync_time);
+
 #endif

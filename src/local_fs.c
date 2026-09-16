@@ -87,6 +87,23 @@ int local_list_files_recursive(const char *path, BrowseFileEntry *out, int max_e
 	return count;
 }
 
+bool local_ensure_dir(const char *relative_path)
+{
+	if (!relative_path[0]) return true;
+
+	char path[BROWSE_STR_MAX + 64];
+	fullPath(path, sizeof(path), relative_path);
+
+	for (char *p = path + 1; *p; p++) {
+		if (*p != '/') continue;
+		*p = '\0';
+		if (mkdir(path, 0755) != 0 && errno != EEXIST) return false;
+		*p = '/';
+	}
+	if (mkdir(path, 0755) != 0 && errno != EEXIST) return false;
+	return true;
+}
+
 bool local_create_folder(const char *parent_path, const char *base_name, char *out_name)
 {
 	char parent_full[BROWSE_STR_MAX + 64];

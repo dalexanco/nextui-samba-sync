@@ -14,7 +14,27 @@
 #define JOBS_PATH JOBS_DIR "/jobs"
 
 static Job jobs[MAX_JOBS];
+static char job_paths[MAX_JOBS][MAX_PATH]; // on-disk file for jobs[i], parallel array -- see jobs_set_sync_result()
 static int job_count = 0;
+
+// Writes job's fields to path in the key=value format every job file uses.
+// Shared by jobs_create() (new file) and jobs_set_sync_result() (rewriting
+// an existing one after a sync completes).
+static bool writeJobFile(const char *path, const Job *job)
+{
+	FILE *file = fopen(path, "w");
+	if (!file) return false;
+
+	fprintf(file, "name=%s\n", job->name);
+	fprintf(file, "server=%s\n", job->server);
+	fprintf(file, "remote_path=%s\n", job->remote_path);
+	fprintf(file, "local_path=%s\n", job->local_path);
+	fprintf(file, "mirror=%d\n", job->mirror ? 1 : 0);
+	fprintf(file, "last_sync_status=%s\n", job->last_sync_status);
+	fprintf(file, "last_sync_time=%d\n", job->last_sync_time);
+	fclose(file);
+	return true;
+}
 
 // Parses one <slug>.txt (key=value) into *out. Returns false and leaves
 // *out untouched if a required field (name/server/remote_path/local_path)
@@ -80,7 +100,10 @@ void jobs_rescan(void)
 		struct stat fst;
 		if (stat(job_file, &fst) != 0 || !S_ISREG(fst.st_mode)) continue;
 
-		if (parseJobFile(job_file, &jobs[job_count])) job_count++;
+		if (parseJobFile(job_file, &jobs[job_count])) {
+			snprintf(job_paths[job_count], sizeof(job_paths[job_count]), "%s", job_file);
+			job_count++;
+		}
 	}
 	closedir(dir);
 }
@@ -154,18 +177,29 @@ bool jobs_create(const char *name, const char *server, const char *remote_path, 
 		if (++suffix > 999) return false;
 	}
 
-	FILE *file = fopen(job_file, "w");
-	if (!file) return false;
+	Job job;
+	memset(&job, 0, sizeof(job));
+	snprintf(job.name, sizeof(job.name), "%s", name);
+	snprintf(job.server, sizeof(job.server), "%s", server);
+	snprintf(job.remote_path, sizeof(job.remote_path), "%s", remote_path);
+	snprintf(job.local_path, sizeof(job.local_path), "%s", local_path);
+	job.mirror = mirror;
 
-	fprintf(file, "name=%s\n", name);
-	fprintf(file, "server=%s\n", server);
-	fprintf(file, "remote_path=%s\n", remote_path);
-	fprintf(file, "local_path=%s\n", local_path);
-	fprintf(file, "mirror=%d\n", mirror ? 1 : 0);
-	fprintf(file, "last_sync_status=\n");
-	fprintf(file, "last_sync_time=0\n");
-	fclose(file);
+	if (!writeJobFile(job_file, &job)) return false;
 
 	jobs_rescan();
 	return true;
+}
+
+void jobs_set_sync_result(const Job *job, const char *status, int sync_time)
+{
+	int index = (int)(job - jobs);
+	if (index < 0 || index >= job_count) return;
+
+	Job updated = jobs[index];
+	snprintf(updated.last_sync_status, sizeof(updated.last_sync_status), "%s", status);
+	updated.last_sync_time = sync_time;
+
+	writeJobFile(job_paths[index], &updated);
+	jobs_rescan();
 }

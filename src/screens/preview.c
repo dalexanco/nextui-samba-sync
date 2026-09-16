@@ -20,21 +20,12 @@ PreviewAction Preview_input(int *dirty)
 	(void)dirty; // nothing on this screen changes after Preview_enter()
 
 	if (PAD_justPressed(BTN_B)) return PREVIEW_ACTION_BACK;
-	// BTN_A ("Lancer la synchronisation") is withheld -- see preview.h.
+	if (preview.ok && PAD_justPressed(BTN_A)) {
+		sync_engine_confirm(job);
+		return PREVIEW_ACTION_START_SYNC;
+	}
 
 	return PREVIEW_ACTION_NONE;
-}
-
-// Formats bytes as a human count ("340 Mo", "12 Ko", "3 o") -- écran 3bis
-// is the first screen needing to show a byte volume, so this doesn't live
-// in ui.h yet (see ui.h's own comment: helpers factored out once a second
-// screen needs the exact same code, not speculatively).
-static void formatBytes(long long bytes, char *out, size_t out_size)
-{
-	if (bytes >= 1024LL * 1024 * 1024) snprintf(out, out_size, "%.1f Go", bytes / (1024.0 * 1024 * 1024));
-	else if (bytes >= 1024LL * 1024) snprintf(out, out_size, "%.1f Mo", bytes / (1024.0 * 1024));
-	else if (bytes >= 1024) snprintf(out, out_size, "%.1f Ko", bytes / 1024.0);
-	else snprintf(out, out_size, "%lld o", bytes);
 }
 
 void Preview_render(SDL_Surface *screen, int show_setting)
@@ -52,7 +43,7 @@ void Preview_render(SDL_Surface *screen, int show_setting)
 	}
 	else {
 		char size_str[32];
-		formatBytes(preview.to_copy_bytes, size_str, sizeof(size_str));
+		UI_formatBytes(preview.to_copy_bytes, size_str, sizeof(size_str));
 
 		char copy_line[96];
 		snprintf(copy_line, sizeof(copy_line), "À copier : %d fichier%s (%s)",
@@ -70,6 +61,7 @@ void Preview_render(SDL_Surface *screen, int show_setting)
 		}
 	}
 
-	GFX_blitButtonGroup((char *[]){ "B", "ANNULER", NULL }, 0, screen, 1);
+	if (preview.ok) GFX_blitButtonGroup((char *[]){ "A", "LANCER LA SYNCHRONISATION", NULL }, 0, screen, 0);
+	GFX_blitButtonGroup((char *[]){ "B", "ANNULER", NULL }, 1, screen, 1);
 	if (show_setting) GFX_blitHardwareHints(screen, show_setting);
 }

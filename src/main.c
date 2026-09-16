@@ -28,6 +28,7 @@
 #include "screens/servers_list.h"
 #include "screens/job_wizard.h"
 #include "screens/preview.h"
+#include "screens/progress.h"
 
 static bool quit = false;
 
@@ -57,6 +58,7 @@ typedef enum {
 	SCREEN_SERVERS_LIST,
 	SCREEN_JOB_WIZARD,
 	SCREEN_PREVIEW,
+	SCREEN_PROGRESS,
 } Screen;
 
 int main(int argc, char *argv[])
@@ -79,6 +81,7 @@ int main(int argc, char *argv[])
 	jobs_rescan();
 
 	Screen active_screen = SCREEN_HOME;
+	const Job *sync_job = NULL; // carries the selected job from écran 1 through écran 3bis into écran 4
 
 	int dirty = 1;
 	int show_setting = 0;
@@ -115,7 +118,8 @@ int main(int argc, char *argv[])
 				dirty = 1;
 			}
 			else if (action == JOBS_LIST_ACTION_SYNC_JOB) {
-				Preview_enter(JobsList_selectedJob());
+				sync_job = JobsList_selectedJob();
+				Preview_enter(sync_job);
 				active_screen = SCREEN_PREVIEW;
 				dirty = 1;
 			}
@@ -124,6 +128,19 @@ int main(int argc, char *argv[])
 		case SCREEN_PREVIEW: {
 			PreviewAction action = Preview_input(&dirty);
 			if (action == PREVIEW_ACTION_BACK) {
+				active_screen = SCREEN_JOBS_LIST;
+				dirty = 1;
+			}
+			else if (action == PREVIEW_ACTION_START_SYNC) {
+				Progress_enter(sync_job);
+				active_screen = SCREEN_PROGRESS;
+				dirty = 1;
+			}
+			break;
+		}
+		case SCREEN_PROGRESS: {
+			ProgressAction action = Progress_input(&dirty);
+			if (action == PROGRESS_ACTION_BACK) {
 				active_screen = SCREEN_JOBS_LIST;
 				dirty = 1;
 			}
@@ -156,6 +173,7 @@ int main(int argc, char *argv[])
 			case SCREEN_SERVERS_LIST: ServersList_render(screen, show_setting); break;
 			case SCREEN_JOB_WIZARD: JobWizard_render(screen, show_setting); break;
 			case SCREEN_PREVIEW: Preview_render(screen, show_setting); break;
+			case SCREEN_PROGRESS: Progress_render(screen, show_setting); break;
 			}
 
 			GFX_flip(screen);

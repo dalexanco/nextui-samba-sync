@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <time.h>
+#include <fcntl.h>
 
 #include <smb2/smb2.h>
 #include <smb2/libsmb2.h>
@@ -11,6 +12,14 @@
 
 struct SmbSession {
 	struct smb2_context *smb2;
+};
+
+// Keeps its own smb2 context pointer (rather than requiring callers to pass
+// the owning SmbSession back into smb_read_chunk()/smb_close_read()) since
+// smb2_read()/smb2_close() only need the context, not the session wrapper.
+struct SmbFile {
+	struct smb2_context *smb2;
+	struct smb2fh *fh;
 };
 
 SmbSession *smb_connect(const Server *server, int timeout_seconds, SmbError *out_error)
@@ -123,4 +132,31 @@ int smb_list_files_recursive(SmbSession *session, const char *remote_path, Brows
 	}
 	*out_error = SMB_OK;
 	return count;
+}
+
+SmbFile *smb_open_read(SmbSession *session, const char *remote_path, SmbError *out_error)
+{
+	struct smb2fh *fh = smb2_open(session->smb2, remote_path, O_RDONLY);
+	if (!fh) {
+		*out_error = SMB_ERR_FAILED;
+		return NULL;
+	}
+
+	SmbFile *file = malloc(sizeof(SmbFile));
+	file->smb2 = session->smb2;
+	file->fh = fh;
+	*out_error = SMB_OK;
+	return file;
+}
+
+int smb_read_chunk(SmbFile *file, uint8_t *buf, uint32_t buf_size)
+{
+	return smb2_read(file->smb2, file->fh, buf, buf_size);
+}
+
+void smb_close_read(SmbFile *file)
+{
+	if (!file) return;
+	smb2_close(file->smb2, file->fh);
+	free(file);
 }

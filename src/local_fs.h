@@ -38,4 +38,11 @@ bool local_create_folder(const char *parent_path, const char *base_name, char *o
 // failure (path missing/unreadable); silently truncates past max_entries.
 int local_list_files_recursive(const char *path, BrowseFileEntry *out, int max_entries);
 
+// Creates SDCARD_PATH/relative_path and any missing parent directories
+// (mkdir -p) -- sync_engine.c calls this before writing a copied file, since
+// its remote subtree may not exist locally yet. relative_path=="" is a
+// no-op (SDCARD_PATH itself always exists). Returns false only if a
+// directory create fails for a reason other than already existing.
+bool local_ensure_dir(const char *relative_path);
+
 #endif

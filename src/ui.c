@@ -1,3 +1,5 @@
+#include <stdio.h>
+
 #include "defines.h"
 #include "ui.h"
 
@@ -42,4 +44,12 @@ void UI_renderTitle(SDL_Surface *screen, const char *name, int show_setting)
 		                &(SDL_Rect){ SCALE1(PADDING + BUTTON_PADDING), SCALE1(PADDING + 4) });
 		SDL_FreeSurface(text);
 	}
+}
+
+void UI_formatBytes(long long bytes, char *out, size_t out_size)
+{
+	if (bytes >= 1024LL * 1024 * 1024) snprintf(out, out_size, "%.1f Go", bytes / (1024.0 * 1024 * 1024));
+	else if (bytes >= 1024LL * 1024) snprintf(out, out_size, "%.1f Mo", bytes / (1024.0 * 1024));
+	else if (bytes >= 1024) snprintf(out, out_size, "%.1f Ko", bytes / 1024.0);
+	else snprintf(out, out_size, "%lld o", bytes);
 }

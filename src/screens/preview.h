@@ -8,16 +8,14 @@
 // reached from écran 1's "Lancer" (A) on a job (see screens/jobs_list.c
 // and main.c). The "Tout synchroniser" multi-job variant (home.c) stays a
 // no-op until a job queue exists on top of sync_engine.c.
-//
-// "A Lancer la synchronisation" from the SPEC.md mockup is withheld:
-// sync_engine.c only computes the diff so far (WAITING_CONFIRM in
-// docs/ARCHITECTURE.md's state machine) -- actually copying/deleting is
-// écran 4, not built yet. Same withheld-action pattern used for écran
-// 2b/3's Y until their target screens existed (see job_wizard.c).
 
 typedef enum {
 	PREVIEW_ACTION_NONE,
 	PREVIEW_ACTION_BACK,
+	// A on a successful preview -- sync_engine_confirm() has already been
+	// called by the time this is returned, so main.c only needs to switch
+	// to écran 4 (screens/progress.c).
+	PREVIEW_ACTION_START_SYNC,
 } PreviewAction;
 
 // Computes the sync diff for `job` (blocking -- see sync_engine.c); call
