@@ -7,6 +7,7 @@
 #include "servers.h"
 #include "smb_client.h"
 #include "browse.h"
+#include "local_fs.h"
 #include "job_wizard.h"
 
 #define ROW_HEIGHT (PILL_SIZE + 6)
@@ -18,15 +19,17 @@ typedef enum {
 	CONNECT_FAILED,
 } ConnectStatus;
 
-// Écran 2a and écran 2b (étapes 1/3 et 2/3) live in this one file, per
-// docs/ARCHITECTURE.md -- the whole job-creation assistant is one state
-// machine, just like sync_engine.c will be for écran 4. Écran 2c
-// (récapitulatif) and écran 3 (parcourir la SD) don't exist yet, so "Y
-// Choisir ce dossier" on écran 2b has nowhere to go and is withheld, same
-// as jobs_list.h's pattern for actions without a backing screen yet.
+// Écran 2a, écran 2b and écran 3 (étapes 1/3, 2/3 et 3/3) live in this one
+// file, per docs/ARCHITECTURE.md -- the whole job-creation assistant is one
+// state machine, just like sync_engine.c will be for écran 4. Écran 2c
+// (récapitulatif) doesn't exist yet, so "Y Choisir ce dossier" on écran 3
+// has nowhere to go and is withheld, same as jobs_list.h's pattern for
+// actions without a backing screen yet -- écran 2b's own Y is wired now
+// that its target (écran 3) exists.
 typedef enum {
 	WIZARD_STEP_CHOOSE_SERVER,
 	WIZARD_STEP_BROWSE_REMOTE,
+	WIZARD_STEP_BROWSE_LOCAL,
 } WizardStep;
 
 static WizardStep step;
@@ -38,13 +41,26 @@ static ConnectStatus connect_status = CONNECT_UNTRIED;
 
 // Étape 2 (parcours distant) state. Invariant: session is non-NULL only
 // while step == WIZARD_STEP_BROWSE_REMOTE -- every transition out of that
-// step (back to root, or cancelling) disconnects it first.
+// step (back to root, cancelling, or picking a source folder) disconnects
+// it first.
 static int chosen_server_index;
 static SmbSession *session = NULL;
-static char current_path[BROWSE_STR_MAX];
-static BrowseEntry entries[BROWSE_MAX_ENTRIES];
-static int entry_count = 0;
-static char list_error[128];
+static char remote_current_path[BROWSE_STR_MAX];
+static BrowseEntry remote_entries[BROWSE_MAX_ENTRIES];
+static int remote_entry_count = 0;
+static char remote_list_error[128];
+
+// Source folder chosen at the end of étape 2 (on Y) -- unlike
+// remote_current_path above, this is set once and not touched again by
+// further browsing. Feeds étape 3's default folder name (X "Créer") and
+// will feed étape 2c's recap once that screen exists.
+static char remote_path[BROWSE_STR_MAX];
+
+// Étape 3 (parcours SD locale) state.
+static char local_current_path[BROWSE_STR_MAX];
+static BrowseEntry local_entries[BROWSE_MAX_ENTRIES];
+static int local_entry_count = 0;
+static char local_list_error[128];
 
 void JobWizard_reset(void)
 {
@@ -56,30 +72,61 @@ void JobWizard_reset(void)
 	selected = 0;
 	scroll_offset = 0;
 	connect_status = CONNECT_UNTRIED;
-	list_error[0] = '\0';
+	remote_list_error[0] = '\0';
+	local_list_error[0] = '\0';
 }
 
-// Lists path into entries[]/entry_count and, on success, commits it as
-// current_path (resetting the on-screen selection/scroll for the new
-// listing). On failure the previous listing/current_path is left untouched
-// (so a failed "Entrer" just leaves the user where they were, with
-// list_error set) and false is returned.
+// Lists path into remote_entries[]/remote_entry_count and, on success,
+// commits it as remote_current_path (resetting the on-screen
+// selection/scroll for the new listing). On failure the previous
+// listing/remote_current_path is left untouched (so a failed "Entrer" just
+// leaves the user where they were, with remote_list_error set) and false
+// is returned.
 static bool tryList(const char *path)
 {
 	SmbError error;
-	int n = smb_list(session, path, entries, BROWSE_MAX_ENTRIES, &error);
+	int n = smb_list(session, path, remote_entries, BROWSE_MAX_ENTRIES, &error);
 	if (n < 0) {
-		snprintf(list_error, sizeof(list_error), "Erreur de connexion au dossier distant");
+		snprintf(remote_list_error, sizeof(remote_list_error), "Erreur de connexion au dossier distant");
 		return false;
 	}
 
-	entry_count = n;
-	browse_sort(entries, entry_count);
-	snprintf(current_path, sizeof(current_path), "%s", path);
+	remote_entry_count = n;
+	browse_sort(remote_entries, remote_entry_count);
+	snprintf(remote_current_path, sizeof(remote_current_path), "%s", path);
 	selected = 0;
 	scroll_offset = 0;
-	list_error[0] = '\0';
+	remote_list_error[0] = '\0';
 	return true;
+}
+
+// Symmetric to tryList() above but for étape 3's local SD browsing.
+static bool tryListLocal(const char *path)
+{
+	int n = local_list(path, local_entries, BROWSE_MAX_ENTRIES);
+	if (n < 0) {
+		snprintf(local_list_error, sizeof(local_list_error), "Erreur de lecture de la carte SD");
+		return false;
+	}
+
+	local_entry_count = n;
+	browse_sort(local_entries, local_entry_count);
+	snprintf(local_current_path, sizeof(local_current_path), "%s", path);
+	selected = 0;
+	scroll_offset = 0;
+	local_list_error[0] = '\0';
+	return true;
+}
+
+// Basename of the remote_path chosen in étape 2, used as the default name
+// for X "Créer" in étape 3 (e.g. "Roms/GBA" -> "GBA"). Falls back to the
+// share name for the edge case where the user picked the share root itself
+// as the source (remote_path == "").
+static const char *sourceFolderName(void)
+{
+	if (!remote_path[0]) return servers_get(chosen_server_index)->share;
+	const char *slash = strrchr(remote_path, '/');
+	return slash ? slash + 1 : remote_path;
 }
 
 static JobWizardAction inputChooseServer(int *dirty)
@@ -128,7 +175,7 @@ static JobWizardAction inputBrowseRemote(int *dirty)
 {
 	if (PAD_justPressed(BTN_B)) {
 		char parent[BROWSE_STR_MAX];
-		snprintf(parent, sizeof(parent), "%s", current_path);
+		snprintf(parent, sizeof(parent), "%s", remote_current_path);
 		if (browse_path_pop(parent)) {
 			tryList(parent);
 		}
@@ -144,19 +191,82 @@ static JobWizardAction inputBrowseRemote(int *dirty)
 		return JOB_WIZARD_ACTION_NONE;
 	}
 
-	if (entry_count > 0) {
+	if (PAD_justPressed(BTN_Y)) {
+		snprintf(remote_path, sizeof(remote_path), "%s", remote_current_path);
+		smb_disconnect(session);
+		session = NULL;
+		tryListLocal("");
+		step = WIZARD_STEP_BROWSE_LOCAL;
+		*dirty = 1;
+		return JOB_WIZARD_ACTION_NONE;
+	}
+
+	if (remote_entry_count > 0) {
 		if (PAD_justRepeated(BTN_UP)) {
-			selected = (selected - 1 + entry_count) % entry_count;
+			selected = (selected - 1 + remote_entry_count) % remote_entry_count;
 			*dirty = 1;
 		}
 		else if (PAD_justRepeated(BTN_DOWN)) {
-			selected = (selected + 1) % entry_count;
+			selected = (selected + 1) % remote_entry_count;
 			*dirty = 1;
 		}
 		else if (PAD_justPressed(BTN_A)) {
 			char new_path[BROWSE_STR_MAX];
-			browse_path_push(new_path, current_path, entries[selected].name);
+			browse_path_push(new_path, remote_current_path, remote_entries[selected].name);
 			tryList(new_path);
+			*dirty = 1;
+		}
+	}
+
+	return JOB_WIZARD_ACTION_NONE;
+}
+
+static JobWizardAction inputBrowseLocal(int *dirty)
+{
+	if (PAD_justPressed(BTN_B)) {
+		char parent[BROWSE_STR_MAX];
+		snprintf(parent, sizeof(parent), "%s", local_current_path);
+		if (browse_path_pop(parent)) {
+			tryListLocal(parent);
+		}
+		else {
+			// At the SD root there's no earlier wizard step to fall back
+			// to (remote_path is already chosen and the SMB session
+			// already closed) -- per SPEC.md this just cancels the
+			// assistant, same as B at étape 2a.
+			return JOB_WIZARD_ACTION_CANCEL;
+		}
+		*dirty = 1;
+		return JOB_WIZARD_ACTION_NONE;
+	}
+
+	if (PAD_justPressed(BTN_X)) {
+		char created_name[BROWSE_STR_MAX];
+		if (local_create_folder(local_current_path, sourceFolderName(), created_name)) {
+			char new_path[BROWSE_STR_MAX];
+			browse_path_push(new_path, local_current_path, created_name);
+			tryListLocal(new_path);
+		}
+		else {
+			snprintf(local_list_error, sizeof(local_list_error), "Impossible de créer le dossier");
+		}
+		*dirty = 1;
+		return JOB_WIZARD_ACTION_NONE;
+	}
+
+	if (local_entry_count > 0) {
+		if (PAD_justRepeated(BTN_UP)) {
+			selected = (selected - 1 + local_entry_count) % local_entry_count;
+			*dirty = 1;
+		}
+		else if (PAD_justRepeated(BTN_DOWN)) {
+			selected = (selected + 1) % local_entry_count;
+			*dirty = 1;
+		}
+		else if (PAD_justPressed(BTN_A)) {
+			char new_path[BROWSE_STR_MAX];
+			browse_path_push(new_path, local_current_path, local_entries[selected].name);
+			tryListLocal(new_path);
 			*dirty = 1;
 		}
 	}
@@ -169,6 +279,7 @@ JobWizardAction JobWizard_input(int *dirty)
 	switch (step) {
 	case WIZARD_STEP_CHOOSE_SERVER: return inputChooseServer(dirty);
 	case WIZARD_STEP_BROWSE_REMOTE: return inputBrowseRemote(dirty);
+	case WIZARD_STEP_BROWSE_LOCAL:  return inputBrowseLocal(dirty);
 	}
 	return JOB_WIZARD_ACTION_NONE;
 }
@@ -242,12 +353,12 @@ static void renderBrowseRemote(SDL_Surface *screen, int show_setting)
 
 	int content_y = SCALE1(PADDING + PILL_SIZE + BUTTON_MARGIN);
 
-	if (list_error[0]) {
-		UI_renderTextCentered(screen, list_error, font.small, COLOR_DARK_TEXT, content_y);
+	if (remote_list_error[0]) {
+		UI_renderTextCentered(screen, remote_list_error, font.small, COLOR_DARK_TEXT, content_y);
 		content_y += SCALE1(24);
 	}
 
-	if (entry_count == 0) {
+	if (remote_entry_count == 0) {
 		UI_renderTextCentered(screen, "Aucun sous-dossier ici", font.small, COLOR_DARK_TEXT, content_y + SCALE1(20));
 	}
 	else {
@@ -257,16 +368,51 @@ static void renderBrowseRemote(SDL_Surface *screen, int show_setting)
 		if (selected < scroll_offset) scroll_offset = selected;
 		if (selected >= scroll_offset + visible_rows) scroll_offset = selected - visible_rows + 1;
 
-		int last = MIN(entry_count, scroll_offset + visible_rows);
+		int last = MIN(remote_entry_count, scroll_offset + visible_rows);
 		for (int i = scroll_offset; i < last; i++) {
 			char label[BROWSE_STR_MAX + 8];
-			snprintf(label, sizeof(label), "\xf0\x9f\x93\x81 %s/", entries[i].name);
+			snprintf(label, sizeof(label), "\xf0\x9f\x93\x81 %s/", remote_entries[i].name);
 			int row = i - scroll_offset;
 			renderRow(screen, label, i == selected, content_y + row * SCALE1(ROW_HEIGHT));
 		}
 	}
 
 	GFX_blitButtonGroup((char *[]){ "A", "ENTRER", NULL }, 0, screen, 0);
+	GFX_blitButtonGroup((char *[]){ "Y", "CHOISIR", "B", "RETOUR", NULL }, 0, screen, 1);
+	if (show_setting) GFX_blitHardwareHints(screen, show_setting);
+}
+
+static void renderBrowseLocal(SDL_Surface *screen, int show_setting)
+{
+	UI_renderTitle(screen, "Nouveau job — Choisir un dossier local", show_setting);
+
+	int content_y = SCALE1(PADDING + PILL_SIZE + BUTTON_MARGIN);
+
+	if (local_list_error[0]) {
+		UI_renderTextCentered(screen, local_list_error, font.small, COLOR_DARK_TEXT, content_y);
+		content_y += SCALE1(24);
+	}
+
+	if (local_entry_count == 0) {
+		UI_renderTextCentered(screen, "Aucun sous-dossier ici", font.small, COLOR_DARK_TEXT, content_y + SCALE1(20));
+	}
+	else {
+		int visible_rows = (screen->h - content_y - SCALE1(PADDING + PILL_SIZE)) / SCALE1(ROW_HEIGHT);
+		if (visible_rows < 1) visible_rows = 1;
+
+		if (selected < scroll_offset) scroll_offset = selected;
+		if (selected >= scroll_offset + visible_rows) scroll_offset = selected - visible_rows + 1;
+
+		int last = MIN(local_entry_count, scroll_offset + visible_rows);
+		for (int i = scroll_offset; i < last; i++) {
+			char label[BROWSE_STR_MAX + 8];
+			snprintf(label, sizeof(label), "\xf0\x9f\x93\x81 %s/", local_entries[i].name);
+			int row = i - scroll_offset;
+			renderRow(screen, label, i == selected, content_y + row * SCALE1(ROW_HEIGHT));
+		}
+	}
+
+	GFX_blitButtonGroup((char *[]){ "X", "CRÉER", "A", "ENTRER", NULL }, 1, screen, 0);
 	GFX_blitButtonGroup((char *[]){ "B", "RETOUR", NULL }, 1, screen, 1);
 	if (show_setting) GFX_blitHardwareHints(screen, show_setting);
 }
@@ -277,5 +423,6 @@ void JobWizard_render(SDL_Surface *screen, int show_setting)
 	switch (step) {
 	case WIZARD_STEP_CHOOSE_SERVER: renderChooseServer(screen, show_setting); break;
 	case WIZARD_STEP_BROWSE_REMOTE: renderBrowseRemote(screen, show_setting); break;
+	case WIZARD_STEP_BROWSE_LOCAL:  renderBrowseLocal(screen, show_setting); break;
 	}
 }
