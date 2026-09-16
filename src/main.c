@@ -26,6 +26,7 @@
 #include "screens/home.h"
 #include "screens/jobs_list.h"
 #include "screens/servers_list.h"
+#include "screens/job_wizard.h"
 
 static bool quit = false;
 
@@ -53,6 +54,7 @@ typedef enum {
 	SCREEN_HOME,
 	SCREEN_JOBS_LIST,
 	SCREEN_SERVERS_LIST,
+	SCREEN_JOB_WIZARD,
 } Screen;
 
 int main(int argc, char *argv[])
@@ -105,11 +107,24 @@ int main(int argc, char *argv[])
 				active_screen = SCREEN_SERVERS_LIST;
 				dirty = 1;
 			}
+			else if (action == JOBS_LIST_ACTION_NEW_JOB) {
+				JobWizard_reset();
+				active_screen = SCREEN_JOB_WIZARD;
+				dirty = 1;
+			}
 			break;
 		}
 		case SCREEN_SERVERS_LIST: {
 			ServersListAction action = ServersList_input(&dirty);
 			if (action == SERVERS_LIST_ACTION_BACK) {
+				active_screen = SCREEN_JOBS_LIST;
+				dirty = 1;
+			}
+			break;
+		}
+		case SCREEN_JOB_WIZARD: {
+			JobWizardAction action = JobWizard_input(&dirty);
+			if (action == JOB_WIZARD_ACTION_CANCEL) {
 				active_screen = SCREEN_JOBS_LIST;
 				dirty = 1;
 			}
@@ -124,6 +139,7 @@ int main(int argc, char *argv[])
 			case SCREEN_HOME: Home_render(screen, show_setting); break;
 			case SCREEN_JOBS_LIST: JobsList_render(screen, show_setting); break;
 			case SCREEN_SERVERS_LIST: ServersList_render(screen, show_setting); break;
+			case SCREEN_JOB_WIZARD: JobWizard_render(screen, show_setting); break;
 			}
 
 			GFX_flip(screen);
