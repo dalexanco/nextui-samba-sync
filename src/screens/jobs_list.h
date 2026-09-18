@@ -5,17 +5,15 @@
 #include "jobs.h"
 
 // Écran 1 (Gestion des jobs) -- see SPEC.md. For now navigation, B=Retour,
-// X=Ajouter and A=Lancer are wired: Y=Éditer needs a pre-fillable
-// job_wizard that doesn't exist yet, and MENU=Réglages needs écran 6, so
-// their hints are withheld rather than shown as dead buttons.
+// X=Ajouter, A=Lancer and MENU=Réglages are wired: Y=Éditer still needs a
+// pre-fillable job_wizard that doesn't exist yet, so its hint is withheld
+// rather than shown as a dead button.
 
 typedef enum {
 	JOBS_LIST_ACTION_NONE,
 	JOBS_LIST_ACTION_BACK,
-	// Temporary: SPEC.md reaches écran 1bis (Serveurs) via écran 6
-	// (Réglages), which doesn't exist yet -- MENU shortcuts there
-	// directly for now (see main.c).
-	JOBS_LIST_ACTION_SERVERS,
+	// MENU -> écran 6 (Réglages). See screens/settings.h.
+	JOBS_LIST_ACTION_SETTINGS,
 	// X -> écran 2a (assistant de création, étape 1/3). See
 	// screens/job_wizard.h.
 	JOBS_LIST_ACTION_NEW_JOB,

@@ -4,11 +4,9 @@
 #include "api.h"
 
 // Écran 1bis (Serveurs, lecture seule) -- see SPEC.md. Diagnostic view over
-// servers declared in Samba Servers/ ; no creation/editing here.
-//
-// SPEC.md reaches this screen from écran 6 (Réglages), which doesn't exist
-// yet -- for now it's wired directly from MENU on écran 1 (see main.c),
-// as a temporary shortcut until écran 6 becomes the real hub.
+// servers declared in Samba Servers/ ; no creation/editing here. Reached
+// from écran 6 (Réglages)'s "Voir les serveurs..." row (see
+// screens/settings.h); B returns there, not to écran 1 directly.
 
 typedef enum {
 	SERVERS_LIST_ACTION_NONE,
