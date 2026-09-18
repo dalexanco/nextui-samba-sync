@@ -7,6 +7,7 @@
 #include "progress.h"
 
 static const Job *job = NULL;
+static char error_message[JOB_STR_MAX + 96];
 
 void Progress_enter(const Job *j)
 {
@@ -28,9 +29,19 @@ ProgressAction Progress_input(int *dirty)
 
 	if (running) sync_engine_tick();
 
-	if (sync_engine_state() == SYNC_STATE_DONE) return PROGRESS_ACTION_DONE;
+	state = sync_engine_state();
+	if (state == SYNC_STATE_DONE) return PROGRESS_ACTION_DONE;
+	if (state == SYNC_STATE_ERROR) {
+		snprintf(error_message, sizeof(error_message), "Échec de synchronisation : %s", job->name);
+		return PROGRESS_ACTION_ERROR;
+	}
 
 	return PROGRESS_ACTION_NONE;
+}
+
+const char *Progress_errorMessage(void)
+{
+	return error_message;
 }
 
 void Progress_render(SDL_Surface *screen, int show_setting)
@@ -49,11 +60,7 @@ void Progress_render(SDL_Surface *screen, int show_setting)
 	SyncProgress progress = sync_engine_progress();
 	SyncPreview totals = sync_engine_totals();
 
-	if (state == SYNC_STATE_ERROR) {
-		UI_renderTextCentered(screen, "Erreur pendant la synchronisation (connexion perdue ou écriture impossible)",
-		                       font.small, COLOR_DARK_TEXT, content_y + SCALE1(20));
-	}
-	else if (state == SYNC_STATE_CANCELLED) {
+	if (state == SYNC_STATE_CANCELLED) {
 		UI_renderTextCentered(screen, "Synchronisation annulée", font.small, COLOR_DARK_TEXT, content_y + SCALE1(20));
 	}
 	else {

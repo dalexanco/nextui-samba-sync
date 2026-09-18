@@ -2,10 +2,11 @@
 // card. Servers are declared offline in Samba Servers/<name>/server.txt;
 // see ../SPEC.md for the UX and ../docs/ARCHITECTURE.md for the design.
 //
-// Every screen up through écran 6 (Réglages) is wired below except écran 5
-// (Erreur, still inline on écran 4 -- see screens/progress.h) and the
+// Every screen up through écran 6 (Réglages) is wired below except the
 // multi-job "Tout synchroniser" flow, so that action on écran 0 is still
-// inert.
+// inert. Écran 5 (Erreur) is reached from écran 4's blocking failures only
+// -- job_wizard.c's own connection-test/remote-browse failures still show
+// inline, see screens/error.h.
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -30,6 +31,7 @@
 #include "screens/progress.h"
 #include "screens/summary.h"
 #include "screens/settings.h"
+#include "screens/error.h"
 
 static bool quit = false;
 
@@ -62,6 +64,7 @@ typedef enum {
 	SCREEN_PROGRESS,
 	SCREEN_SUMMARY,
 	SCREEN_SETTINGS,
+	SCREEN_ERROR,
 } Screen;
 
 int main(int argc, char *argv[])
@@ -153,11 +156,24 @@ int main(int argc, char *argv[])
 				active_screen = SCREEN_SUMMARY;
 				dirty = 1;
 			}
+			else if (action == PROGRESS_ACTION_ERROR) {
+				Error_enter(Progress_errorMessage());
+				active_screen = SCREEN_ERROR;
+				dirty = 1;
+			}
 			break;
 		}
 		case SCREEN_SUMMARY: {
 			SummaryAction action = Summary_input(&dirty);
 			if (action == SUMMARY_ACTION_BACK) {
+				active_screen = SCREEN_JOBS_LIST;
+				dirty = 1;
+			}
+			break;
+		}
+		case SCREEN_ERROR: {
+			ErrorAction action = Error_input(&dirty);
+			if (action == ERROR_ACTION_BACK) {
 				active_screen = SCREEN_JOBS_LIST;
 				dirty = 1;
 			}
@@ -206,6 +222,7 @@ int main(int argc, char *argv[])
 			case SCREEN_PROGRESS: Progress_render(screen, show_setting); break;
 			case SCREEN_SUMMARY: Summary_render(screen, show_setting); break;
 			case SCREEN_SETTINGS: Settings_render(screen, show_setting); break;
+			case SCREEN_ERROR: Error_render(screen, show_setting); break;
 			}
 
 			GFX_flip(screen);
