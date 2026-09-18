@@ -2,11 +2,13 @@
 // card. Servers are declared offline in Samba Servers/<name>/server.txt;
 // see ../SPEC.md for the UX and ../docs/ARCHITECTURE.md for the design.
 //
-// Every screen up through écran 6 (Réglages) is wired below except the
-// multi-job "Tout synchroniser" flow, so that action on écran 0 is still
-// inert. Écran 5 (Erreur) is reached from écran 4's blocking failures only
-// -- job_wizard.c's own connection-test/remote-browse failures still show
-// inline, see screens/error.h.
+// Every screen from SPEC.md is wired below. Écran 5 (Erreur) is reached
+// from écran 4's blocking failures only -- job_wizard.c's own
+// connection-test/remote-browse failures still show inline, see
+// screens/error.h. Écrans 3bis/4/5bis each have a multi-job mode (driven by
+// sync_queue.c) for écran 0's "Tout synchroniser" action, alongside their
+// existing single-job mode reached from écran 1 -- see screens/preview.h,
+// screens/progress.h, screens/summary.h.
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -22,6 +24,7 @@
 #include "api.h"
 #include "servers.h"
 #include "jobs.h"
+#include "sync_queue.h"
 #include "settings.h"
 #include "screens/home.h"
 #include "screens/jobs_list.h"
@@ -105,7 +108,11 @@ int main(int argc, char *argv[])
 				active_screen = SCREEN_JOBS_LIST;
 				dirty = 1;
 			}
-			// HOME_ACTION_SYNC_ALL: no sync_engine yet, nothing to do.
+			else if (action == HOME_ACTION_SYNC_ALL) {
+				Preview_enterAll();
+				active_screen = SCREEN_PREVIEW;
+				dirty = 1;
+			}
 			break;
 		}
 		case SCREEN_JOBS_LIST: {
@@ -135,11 +142,12 @@ int main(int argc, char *argv[])
 		case SCREEN_PREVIEW: {
 			PreviewAction action = Preview_input(&dirty);
 			if (action == PREVIEW_ACTION_BACK) {
-				active_screen = SCREEN_JOBS_LIST;
+				active_screen = Preview_isMultiMode() ? SCREEN_HOME : SCREEN_JOBS_LIST;
 				dirty = 1;
 			}
 			else if (action == PREVIEW_ACTION_START_SYNC) {
-				Progress_enter(sync_job);
+				if (Preview_isMultiMode()) Progress_enterAll();
+				else Progress_enter(sync_job);
 				active_screen = SCREEN_PROGRESS;
 				dirty = 1;
 			}
@@ -148,11 +156,12 @@ int main(int argc, char *argv[])
 		case SCREEN_PROGRESS: {
 			ProgressAction action = Progress_input(&dirty);
 			if (action == PROGRESS_ACTION_BACK) {
-				active_screen = SCREEN_JOBS_LIST;
+				active_screen = Progress_isMultiMode() ? SCREEN_HOME : SCREEN_JOBS_LIST;
 				dirty = 1;
 			}
 			else if (action == PROGRESS_ACTION_DONE) {
-				Summary_enter(sync_job);
+				if (Progress_isMultiMode()) Summary_enterAll();
+				else Summary_enter(sync_job);
 				active_screen = SCREEN_SUMMARY;
 				dirty = 1;
 			}
@@ -166,7 +175,7 @@ int main(int argc, char *argv[])
 		case SCREEN_SUMMARY: {
 			SummaryAction action = Summary_input(&dirty);
 			if (action == SUMMARY_ACTION_BACK) {
-				active_screen = SCREEN_JOBS_LIST;
+				active_screen = Summary_isMultiMode() ? SCREEN_HOME : SCREEN_JOBS_LIST;
 				dirty = 1;
 			}
 			break;

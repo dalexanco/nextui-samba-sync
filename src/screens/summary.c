@@ -4,13 +4,26 @@
 #include "api.h"
 #include "ui.h"
 #include "sync_engine.h"
+#include "sync_queue.h"
 #include "summary.h"
 
 static const Job *job = NULL;
+static bool multi_mode = false;
 
 void Summary_enter(const Job *j)
 {
+	multi_mode = false;
 	job = j;
+}
+
+void Summary_enterAll(void)
+{
+	multi_mode = true;
+}
+
+bool Summary_isMultiMode(void)
+{
+	return multi_mode;
 }
 
 SummaryAction Summary_input(int *dirty)
@@ -21,10 +34,8 @@ SummaryAction Summary_input(int *dirty)
 	return SUMMARY_ACTION_NONE;
 }
 
-void Summary_render(SDL_Surface *screen, int show_setting)
+static void renderSingle(SDL_Surface *screen, int show_setting)
 {
-	GFX_clear(screen);
-
 	char title[JOB_STR_MAX + 32];
 	snprintf(title, sizeof(title), "Synchronisation terminée : %s%s", job->name, job->mirror ? " (Miroir)" : "");
 	UI_renderTitle(screen, title, show_setting);
@@ -59,6 +70,71 @@ void Summary_render(SDL_Surface *screen, int show_setting)
 	}
 
 	UI_renderText(screen, "Erreurs : 0", font.medium, COLOR_WHITE, x, line_y);
+}
+
+// Aggregate header (all jobs summed) followed by one breakdown line per job,
+// per SPEC.md's multi-job écran 5bis mockup. Plain text rather than the
+// mockup's ✔/🗑/✘ glyphs, matching this codebase's existing deviation
+// (renderSingle() above and error.c/progress.c never use them either).
+static void renderMulti(SDL_Surface *screen, int show_setting)
+{
+	int result_count = sync_queue_resultCount();
+
+	char title[48];
+	snprintf(title, sizeof(title), "Synchronisation terminée : %d jobs", result_count);
+	UI_renderTitle(screen, title, show_setting);
+
+	int line_y = SCALE1(PADDING + PILL_SIZE + BUTTON_MARGIN);
+	int row_h = SCALE1(22);
+	int x = SCALE1(PADDING);
+
+	int total_copied = 0, total_deleted = 0, total_errors = 0;
+	long long total_bytes = 0;
+	for (int i = 0; i < result_count; i++) {
+		const SyncQueueResult *r = sync_queue_result(i);
+		if (r->ok) {
+			total_copied += r->files_copied;
+			total_bytes += r->bytes_copied;
+			total_deleted += r->files_deleted;
+		}
+		else {
+			total_errors++;
+		}
+	}
+
+	char size_str[32];
+	UI_formatBytes(total_bytes, size_str, sizeof(size_str));
+	char agg_line[128];
+	snprintf(agg_line, sizeof(agg_line), "%d fichiers copiés (%s) · %d supprimés · %d erreur%s",
+	         total_copied, size_str, total_deleted, total_errors, total_errors > 1 ? "s" : "");
+	UI_renderText(screen, agg_line, font.medium, COLOR_WHITE, x, line_y);
+	line_y += row_h + SCALE1(14);
+
+	for (int i = 0; i < result_count; i++) {
+		const SyncQueueResult *r = sync_queue_result(i);
+		char line[JOB_STR_MAX + 64];
+		if (!r->ok) {
+			snprintf(line, sizeof(line), "%s%s : erreur", r->job->name, r->job->mirror ? " (Miroir)" : "");
+		}
+		else if (r->job->mirror) {
+			snprintf(line, sizeof(line), "%s (Miroir) : %d copié%s, %d supprimé%s",
+			         r->job->name, r->files_copied, r->files_copied > 1 ? "s" : "",
+			         r->files_deleted, r->files_deleted > 1 ? "s" : "");
+		}
+		else {
+			snprintf(line, sizeof(line), "%s : %d copié%s",
+			         r->job->name, r->files_copied, r->files_copied > 1 ? "s" : "");
+		}
+		UI_renderText(screen, line, font.small, COLOR_WHITE, x + SCALE1(12), line_y + i * SCALE1(20));
+	}
+}
+
+void Summary_render(SDL_Surface *screen, int show_setting)
+{
+	GFX_clear(screen);
+
+	if (multi_mode) renderMulti(screen, show_setting);
+	else renderSingle(screen, show_setting);
 
 	GFX_blitButtonGroup((char *[]){ "B", "RETOUR", NULL }, 0, screen, 1);
 	if (show_setting) GFX_blitHardwareHints(screen, show_setting);
