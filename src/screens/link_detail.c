@@ -140,7 +140,11 @@ static void addLastSync(void)
 	time_t t = last->time;
 	char when[32];
 	strftime(when, sizeof(when), "%d/%m/%Y at %H:%M", localtime(&t));
-	snprintf(l->text, sizeof(l->text), "%s · %s", when, statusLabel(last->status));
+	// Date and status on separate lines: joined by a "·" they overflow the
+	// value column and wrap, leaving the separator dangling at the end.
+	snprintf(l->text, sizeof(l->text), "%s", when);
+	if ((l = addValueLine(false)))
+		snprintf(l->text, sizeof(l->text), "%s", statusLabel(last->status));
 
 	char size[32];
 	UI_formatBytes(last->bytes_copied, size, sizeof(size));
