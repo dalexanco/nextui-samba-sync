@@ -9,7 +9,7 @@
 // Result of a link's last sync, persisted by the pak in
 // $SHARED_USERDATA_PATH "/samba-sync/state/<slug>.txt" (key=value, one file
 // per link) so the main screen's failure marker and the detail screen
-// survive a restart -- see SPEC.md "État persistant". Keyed by link name:
+// survive a restart -- see SPEC.md, screen 1. Keyed by link name:
 // renaming a link in Samba Sync.toml loses its history.
 
 #define LINK_STATE_MAX_ERRORS 50

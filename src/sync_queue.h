@@ -8,8 +8,8 @@
 #include "link_state.h"
 
 // Runs sync_engine.c over every link of the config, one after the other, in
-// file order -- either checking them (at startup and on "Revérifier") or
-// syncing them ("Tout synchroniser"). Links with a config error are skipped.
+// file order -- either checking them (at startup and on "Check") or syncing
+// them ("Sync everything"). Links with a config error are skipped.
 // A link failing never stops the queue (SPEC.md). Also keeps, per link,
 // everything the main and detail screens show: current phase, latest check
 // and persisted last sync.
@@ -54,19 +54,19 @@ void sync_queue_cancel(void);
 QueueMode sync_queue_mode(void);
 
 // Position of the link currently being synced among the links synced by
-// this run (1-based) and their count -- for "Synchronisation 2/4".
+// this run (1-based) and their count -- for "Syncing 2/4".
 int sync_queue_sync_position(void);
 int sync_queue_sync_total(void);
 
-// True once a "Tout synchroniser" run has ended (until the next reload or
-// check) -- for "Synchronisation terminée".
+// True once a "Sync everything" run has ended (until the next reload or
+// check) -- for "Sync finished".
 bool sync_queue_sync_finished(void);
 
 LinkPhase sync_queue_phase(int link_index);
 const LinkCheck *sync_queue_check(int link_index); // meaningful from LINK_PHASE_CHECKED
 const LinkState *sync_queue_last(int link_index);  // persisted last sync (status NEVER if none)
 
-// Can "Tout synchroniser" run: idle, and at least one valid link.
+// Can "Sync everything" run: idle, and at least one valid link.
 bool sync_queue_can_sync(void);
 
 #endif

@@ -7,8 +7,8 @@
 #include "link_state.h"
 #include "browse.h"
 
-// Checks and syncs one link (see SPEC.md "Concept" and "Flux Tout
-// synchroniser"). A file is to copy if it's missing locally or its size
+// Checks and syncs one link (see SPEC.md "Concept" and the "Sync everything"
+// flow). A file is to copy if it's missing locally or its size
 // differs; in mirror mode, a local file absent remotely is to delete.
 //
 // Checking is blocking (connect + recursive listings + diff). Syncing is
