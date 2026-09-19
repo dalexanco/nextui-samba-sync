@@ -193,11 +193,17 @@ copied stays in place, and no partly-downloaded file is ever left behind.
 
 ### Detail screen
 
-Press **Y** on a link. It shows its configuration, the result of the last
-check, and the last sync: date, status, files copied and deleted, and the list
-of errors (up to 50, with the total). Long values, such as paths and error
-messages, wrap onto several lines rather than being cut off. Use up/down to
-scroll, **B** to go back.
+Press **Y** on a link. It shows, in this order: the result of the last check,
+the last sync, and the link's configuration.
+
+The check gives one figure per line — files to copy and their volume, files to
+delete and the volume they free (mirror mode), and the **net effect on the SD
+card**, which is negative when mirror mode frees more than it copies. The last
+sync gives its date, status, counters and the list of errors (up to 50, with
+the total).
+
+Long values, such as paths and error messages, wrap onto several lines rather
+than being cut off. Use up/down to scroll, **B** to go back.
 
 ## Sync modes
 

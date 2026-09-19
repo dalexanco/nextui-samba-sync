@@ -224,21 +224,27 @@ Reached with **Y** from the main screen, outside a running sync.
 ```
 Roms GBA
 ─────────────────────────────────────────
+Check       12 new (340 MB)
+            3 to delete (1.1 GB)
+            -800 MB on the SD card
+
+Last sync   18/09/2026 at 18:42 · partial
+            84 copied (1.2 GB)
+            5 deleted
+            2 errors:
+              Pokemon Ruby (USA).gba — Not enough disk space
+              Zelda Minish Cap (EU).gba — Write denied
+
 Server      Living Room NAS (192.168.1.10)
 Remote      Roms/GBA
 Local       Roms/Game Boy Advance (GBA)
 Mode        Mirror
 
-Check       12 new (340 MB) · 3 to delete
-
-Last sync   18/09/2026 at 18:42 · partial
-            84 copied (1.2 GB) · 5 deleted
-            2 errors:
-              Pokemon Ruby (USA).gba — Not enough disk space
-              Zelda Minish Cap (EU).gba — Write denied
-
 B  Back
 ```
+
+The check and the last sync come first: they are what the screen is opened for, and the
+configuration is reference material that would otherwise push the figures off the bottom.
 
 Each line sits on a black pill, like the lines of screen 1: the background colour is a NextUI theme
 setting, so text placed directly on it would have no guaranteed contrast.
@@ -246,13 +252,18 @@ setting, so text placed directly on it would have no guaranteed contrast.
 A value too long for one line **wraps onto several lines** rather than being cut off, its
 continuation aligned under the value column — paths and error messages are routinely long.
 
-- **Configuration**: read-only recap of what the file says.
-- **Check**: result of the current check (to copy, volume, to delete), or the error encountered, or
-  the config error. After a sync the check is stale: the line shows "stale, press X to re-check"
-  rather than a wrong number.
+- **Check**: one figure per line, so each can be read on its own:
+  - files to copy and their volume;
+  - files to delete and the volume they free (mirror mode only);
+  - the **net effect on the SD card**, signed: what arrives, minus the bytes of the local files it
+    replaces, minus what is deleted. Negative when mirror mode frees more than it brings in.
+
+  Otherwise: the error encountered, or the config error. After a sync the check is stale: the line
+  shows "stale, press X to re-check" rather than a wrong number.
 - **Last sync**: date, status (succeeded / partial / failed / cancelled / never), copied and deleted
-  counters, and the list of errors (link-wide error, or per-file errors). The screen scrolls
-  (up/down); the list is limited to the first 50 errors, with the total still shown.
+  counters (one per line), and the list of errors (link-wide error, or per-file errors). The screen
+  scrolls (up/down); the list is limited to the first 50 errors, with the total still shown.
+- **Configuration**: read-only recap of what the file says.
 - **B**: back to the main screen.
 
 ---

@@ -21,7 +21,12 @@ typedef struct {
 	char message[LINK_ERROR_REASON_MAX]; // why the check failed, if !ok
 	int to_copy_count;
 	long long to_copy_bytes;
-	int to_delete_count; // always 0 unless the link is in mirror mode
+	int to_delete_count;        // always 0 unless the link is in mirror mode
+	long long to_delete_bytes;  // what those deletions free
+	// How much the SD card would grow (or shrink, hence signed): bytes
+	// arriving, minus the bytes of the local files they replace, minus the
+	// bytes deleted.
+	long long delta_bytes;
 } LinkCheck;
 
 // Blocking. Never called on a link with a config error.

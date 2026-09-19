@@ -17,9 +17,10 @@
 #define GAP_HEIGHT (PILL_SIZE / 2)
 
 typedef struct {
-	char label[32]; // left column, "" for a full-width line
+	char label[32]; // left column, "" for a line with no label of its own
 	char text[DETAIL_LINE_MAX];
 	bool dim;
+	bool indent; // no label, but still aligned under the value column
 } Line;
 
 // One rendered row: a line whose value fitted, or one slice of a wrapped
@@ -46,6 +47,15 @@ static Line *addLine(const char *label, bool dim)
 	snprintf(line->label, sizeof(line->label), "%s", label);
 	line->text[0] = '\0';
 	line->dim = dim;
+	line->indent = false;
+	return line;
+}
+
+// A further line of the value above: no label, same alignment.
+static Line *addValueLine(bool dim)
+{
+	Line *line = addLine("", dim);
+	if (line) line->indent = true;
 	return line;
 }
 
@@ -99,10 +109,21 @@ static void addCheck(const Link *link)
 		snprintf(l->text, sizeof(l->text), "Up to date");
 	}
 	else {
+		// One figure per line: what arrives, then what goes away.
 		char size[32];
 		UI_formatBytes(check->to_copy_bytes, size, sizeof(size));
-		snprintf(l->text, sizeof(l->text), "%d new (%s) · %d to delete",
-		         check->to_copy_count, size, check->to_delete_count);
+		snprintf(l->text, sizeof(l->text), "%d new (%s)", check->to_copy_count, size);
+		if (link->mode == LINK_MODE_MIRROR && (l = addValueLine(false))) {
+			UI_formatBytes(check->to_delete_bytes, size, sizeof(size));
+			snprintf(l->text, sizeof(l->text), "%d to delete (%s)", check->to_delete_count, size);
+		}
+		// Net effect on the card: negative when mirror mode frees more than
+		// the copies bring in.
+		if ((l = addValueLine(false))) {
+			long long delta = check->delta_bytes;
+			UI_formatBytes(delta < 0 ? -delta : delta, size, sizeof(size));
+			snprintf(l->text, sizeof(l->text), "%s%s on the SD card", delta < 0 ? "-" : "+", size);
+		}
 	}
 }
 
@@ -123,12 +144,13 @@ static void addLastSync(void)
 
 	char size[32];
 	UI_formatBytes(last->bytes_copied, size, sizeof(size));
-	if ((l = addLine("", false)))
-		snprintf(l->text, sizeof(l->text), "%d copied (%s) · %d deleted",
-		         last->files_copied, size, last->files_deleted);
+	if ((l = addValueLine(false)))
+		snprintf(l->text, sizeof(l->text), "%d copied (%s)", last->files_copied, size);
+	if ((l = addValueLine(false)))
+		snprintf(l->text, sizeof(l->text), "%d deleted", last->files_deleted);
 
 	if (last->error_total == 0) return;
-	if ((l = addLine("", false))) {
+	if ((l = addValueLine(false))) {
 		if (last->error_total > last->error_count)
 			snprintf(l->text, sizeof(l->text), "%d errors (first %d):", last->error_total, last->error_count);
 		else
@@ -148,12 +170,14 @@ void LinkDetail_enter(int index)
 	line_count = 0;
 	scroll = 0;
 
+	// What you open this screen for comes first -- the configuration is
+	// reference material, and pushed the figures off the bottom of the screen.
 	const Link *link = sync_config_link_get(index);
-	addConfig(link);
-	addLine("", false);
 	addCheck(link);
 	addLine("", false);
 	addLastSync();
+	addLine("", false);
+	addConfig(link);
 }
 
 // How many rows fit, computed by the last render (input has no surface).
@@ -199,16 +223,17 @@ static void buildRows(TTF_Font *font, int value_width, int full_width)
 		}
 
 		bool labelled = line->label[0] != '\0';
+		bool aligned = labelled || line->indent;
 		static char wrapped[MAX_WRAP][DETAIL_LINE_MAX];
 		int n = UI_wrapText(font, line->text, wrapped[0], DETAIL_LINE_MAX, MAX_WRAP,
-		                    labelled ? value_width : full_width);
+		                    aligned ? value_width : full_width);
 
 		for (int k = 0; k < n && row_count < MAX_ROWS; k++) {
 			rows[row_count].label = (labelled && k == 0) ? line->label : "";
 			snprintf(rows[row_count].text, DETAIL_LINE_MAX, "%s", wrapped[k]);
 			rows[row_count].dim = line->dim;
 			rows[row_count].gap = false;
-			rows[row_count].indent = labelled;
+			rows[row_count].indent = aligned;
 			row_count++;
 		}
 	}

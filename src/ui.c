@@ -117,12 +117,8 @@ void UI_renderTitle(SDL_Surface *screen, const char *name, int show_setting)
 
 void UI_formatBytes(long long bytes, char *out, size_t out_size)
 {
-	if (bytes >= 1024LL * 1024 * 1024) snprintf(out, out_size, "%.1f Go", bytes / (1024.0 * 1024 * 1024));
-	else if (bytes >= 1024LL * 1024) snprintf(out, out_size, "%.1f Mo", bytes / (1024.0 * 1024));
-	else if (bytes >= 1024) snprintf(out, out_size, "%.1f Ko", bytes / 1024.0);
-	else snprintf(out, out_size, "%lld o", bytes);
-
-	// Decimal comma: the UI is in French, and printf's locale is "C" here.
-	for (char *p = out; *p; p++)
-		if (*p == '.') *p = ',';
+	if (bytes >= 1024LL * 1024 * 1024) snprintf(out, out_size, "%.1f GB", bytes / (1024.0 * 1024 * 1024));
+	else if (bytes >= 1024LL * 1024) snprintf(out, out_size, "%.1f MB", bytes / (1024.0 * 1024));
+	else if (bytes >= 1024) snprintf(out, out_size, "%.1f KB", bytes / 1024.0);
+	else snprintf(out, out_size, "%lld B", bytes);
 }

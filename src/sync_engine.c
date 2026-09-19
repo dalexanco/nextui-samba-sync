@@ -24,6 +24,8 @@ static int to_copy_count = 0;
 static long long to_copy_bytes = 0;
 static BrowseFileEntry to_delete[BROWSE_MAX_FILES];
 static int to_delete_count = 0;
+static long long to_delete_bytes = 0;
+static long long delta_bytes = 0;
 
 static SyncState state = SYNC_STATE_IDLE;
 static const Link *active_link = NULL;
@@ -80,6 +82,8 @@ static LinkCheck runCheck(const Link *link, SmbSession **out_session)
 	to_copy_count = 0;
 	to_copy_bytes = 0;
 	to_delete_count = 0;
+	to_delete_bytes = 0;
+	delta_bytes = 0;
 
 	SmbError error;
 	SmbSession *s = smb_connect(link->server, link->share, sync_config_timeout(), &error);
@@ -129,16 +133,23 @@ static LinkCheck runCheck(const Link *link, SmbSession **out_session)
 		if (cmp < 0) { // remote only
 			to_copy[to_copy_count++] = remote_files[r];
 			to_copy_bytes += remote_files[r].size;
+			delta_bytes += remote_files[r].size;
 			r++;
 		}
 		else if (cmp > 0) { // local only
-			if (mirror) to_delete[to_delete_count++] = local_files[l];
+			if (mirror) {
+				to_delete[to_delete_count++] = local_files[l];
+				to_delete_bytes += local_files[l].size;
+				delta_bytes -= local_files[l].size;
+			}
 			l++;
 		}
 		else {
 			if (remote_files[r].size != local_files[l].size) {
 				to_copy[to_copy_count++] = remote_files[r];
 				to_copy_bytes += remote_files[r].size;
+				// Overwritten in place: only the difference lands on the card.
+				delta_bytes += remote_files[r].size - local_files[l].size;
 			}
 			r++;
 			l++;
@@ -149,6 +160,8 @@ static LinkCheck runCheck(const Link *link, SmbSession **out_session)
 	check.to_copy_count = to_copy_count;
 	check.to_copy_bytes = to_copy_bytes;
 	check.to_delete_count = to_delete_count;
+	check.to_delete_bytes = to_delete_bytes;
+	check.delta_bytes = delta_bytes;
 
 	if (out_session) *out_session = s;
 	else smb_disconnect(s);
