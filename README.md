@@ -9,12 +9,21 @@ card out.
 
 > **Status: in development (v0.2).** What to sync is declared in one
 > configuration file on the SD card; the console UI only checks, triggers and
-> reports. Not yet validated on a real device — see
-> [Current limitations](#current-limitations).
+> reports. Runs on a real device (TrimUI Brick) against a real share, but is
+> not yet widely tested — see [Current limitations](#current-limitations).
 >
 > The console UI, this README and the spec are in English.
 
 ---
+
+## Screenshots
+
+Captured on a TrimUI Brick (tg5040) running the pak against a real SMB share.
+
+| The links, after a sync | A sync running | One link's detail |
+|:---:|:---:|:---:|
+| ![The list of links, each with its status](docs/screenshots/links-list.png) | ![A link syncing, showing its progress in percent](docs/screenshots/syncing.png) | ![A link's detail screen with its last sync](docs/screenshots/link-detail.png) |
+| Every link and its status; the footer says when the last sync ran. | Links are synced in order, on the same screen: the active one shows the share of data transferred. | Check, last sync and — if any — the files that failed. |
 
 ## Contents
 
@@ -236,8 +245,9 @@ size change is not re-copied.
 
 ## Current limitations
 
-- **Not yet tested on a real console**: verified on the desktop build against a
-  throwaway Samba server.
+- **Lightly tested**: it runs on a TrimUI Brick against a real share, and on
+  the desktop build against a throwaway Samba server — that is the whole of it
+  so far.
 - **Checking blocks the UI** while a link is being checked: the screen updates
   between links, and **B** only takes effect between two links.
 - **Syncing a single link** from the UI isn't available; **A** always syncs
