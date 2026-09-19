@@ -11,7 +11,7 @@ PLATFORM="$1"
 
 HERE=$(cd "$(dirname "$0")" && pwd)
 SRC="$HERE/libsmb2"
-BUILD="$SRC/build-$PLATFORM"
+BUILD="$HERE/build/libsmb2-$PLATFORM"
 
 if [ -f "$BUILD/lib/libsmb2.a" ]; then
     exit 0

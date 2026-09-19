@@ -57,7 +57,7 @@ SDL?=SDL
 # ../lib/build-libsmb2.sh -- see ../build-desktop.sh / ../build-tg5040.sh /
 # ../build-tg5050.sh, which run it before invoking this Makefile).
 SMB2_DIR   = ../lib/libsmb2
-SMB2_BUILD = $(SMB2_DIR)/build-$(PLATFORM)
+SMB2_BUILD = ../lib/build/libsmb2-$(PLATFORM)
 
 ###########################################################
 

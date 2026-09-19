@@ -9,6 +9,6 @@ bin/tg5050/sambasync.elf
 bin/desktop/sambasync.elf
 dist/
 
-lib/libsmb2/build-*/
+lib/build/
 
 .nextui-workspace
