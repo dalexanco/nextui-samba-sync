@@ -18,6 +18,12 @@ int UI_renderTextCentered(SDL_Surface *screen, const char *text, TTF_Font *font,
 // hardware (volume/brightness) icon group to its right.
 void UI_renderTitle(SDL_Surface *screen, const char *name, int show_setting);
 
+// Copies text into out (out_size bytes), shortened with a trailing "…" if
+// needed so it renders no wider than max_width. Cuts on UTF-8 character
+// boundaries, unlike GFX_truncateText() which can split an accented letter.
+// Returns the rendered width.
+int UI_fitText(TTF_Font *font, const char *text, char *out, size_t out_size, int max_width);
+
 // Formats a byte count as a human-readable string ("340 Mo", "12 Ko",
 // "3 o") -- factored out of screens/preview.c once screens/progress.c
 // needed the exact same code for écran 4.

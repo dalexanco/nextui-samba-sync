@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 
 #include "defines.h"
 #include "ui.h"
@@ -23,6 +24,26 @@ int UI_textWidth(const char *text, TTF_Font *font)
 int UI_renderTextCentered(SDL_Surface *screen, const char *text, TTF_Font *font, SDL_Color color, int y)
 {
 	return UI_renderText(screen, text, font, color, (screen->w - UI_textWidth(text, font)) / 2, y);
+}
+
+int UI_fitText(TTF_Font *font, const char *text, char *out, size_t out_size, int max_width)
+{
+	snprintf(out, out_size, "%s", text);
+	int w = UI_textWidth(out, font);
+	if (w <= max_width) return w;
+
+	static const char ELLIPSIS[] = "…";
+	size_t len = strlen(out);
+	while (len > 0) {
+		// Step back one UTF-8 character (skip continuation bytes 10xxxxxx).
+		do len--; while (len > 0 && ((unsigned char)out[len] & 0xC0) == 0x80);
+		if (len + sizeof(ELLIPSIS) > out_size) continue;
+		memcpy(out + len, ELLIPSIS, sizeof(ELLIPSIS));
+		w = UI_textWidth(out, font);
+		if (w <= max_width) return w;
+	}
+	snprintf(out, out_size, "%s", ELLIPSIS);
+	return UI_textWidth(out, font);
 }
 
 void UI_renderTitle(SDL_Surface *screen, const char *name, int show_setting)

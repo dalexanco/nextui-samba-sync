@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <string.h>
 #include <time.h>
 #include <fcntl.h>
@@ -8,6 +9,7 @@
 #include <smb2/smb2.h>
 #include <smb2/libsmb2.h>
 
+#include "utils.h"
 #include "smb_client.h"
 
 struct SmbSession {
@@ -22,7 +24,45 @@ struct SmbFile {
 	struct smb2fh *fh;
 };
 
-SmbSession *smb_connect(const Server *server, int timeout_seconds, SmbError *out_error)
+const char *smb_error_label(SmbError error)
+{
+	switch (error) {
+	case SMB_OK: return "";
+	case SMB_ERR_UNREACHABLE: return "Serveur injoignable";
+	case SMB_ERR_AUTH: return "Authentification refusée";
+	case SMB_ERR_SHARE_NOT_FOUND: return "Partage introuvable";
+	case SMB_ERR_PATH_NOT_FOUND: return "Dossier distant introuvable";
+	case SMB_ERR_ACCESS_DENIED: return "Accès refusé";
+	case SMB_ERR_TOO_MANY_FILES: return "Trop de fichiers dans le dossier distant";
+	case SMB_ERR_FAILED: break;
+	}
+	return "Erreur SMB";
+}
+
+// Maps the NT status of the last failed libsmb2 call. A failure with no NT
+// status at all means we never got an answer from the server.
+static SmbError lastError(struct smb2_context *smb2)
+{
+	uint32_t status = (uint32_t)smb2_get_nterror(smb2);
+	switch (status) {
+	case 0: return SMB_ERR_UNREACHABLE;
+	case SMB2_STATUS_LOGON_FAILURE:
+	case SMB2_STATUS_ACCOUNT_RESTRICTION:
+	case SMB2_STATUS_ACCOUNT_DISABLED:
+	case SMB2_STATUS_WRONG_PASSWORD:
+	case SMB2_STATUS_PASSWORD_EXPIRED:
+		return SMB_ERR_AUTH;
+	case SMB2_STATUS_BAD_NETWORK_NAME: return SMB_ERR_SHARE_NOT_FOUND;
+	case SMB2_STATUS_OBJECT_NAME_NOT_FOUND:
+	case SMB2_STATUS_OBJECT_PATH_NOT_FOUND:
+	case SMB2_STATUS_NO_SUCH_FILE:
+		return SMB_ERR_PATH_NOT_FOUND;
+	case SMB2_STATUS_ACCESS_DENIED: return SMB_ERR_ACCESS_DENIED;
+	}
+	return SMB_ERR_FAILED;
+}
+
+SmbSession *smb_connect(const Server *server, const char *share, int timeout_seconds, SmbError *out_error)
 {
 	struct smb2_context *smb2 = smb2_init_context();
 	if (!smb2) {
@@ -35,13 +75,13 @@ SmbSession *smb_connect(const Server *server, int timeout_seconds, SmbError *out
 	smb2_set_password(smb2, server->password);
 	smb2_set_domain(smb2, server->domain);
 
-	char host[SERVER_STR_MAX + 16];
+	char host[CONFIG_STR_MAX + 16];
 	snprintf(host, sizeof(host), "%s:%d", server->host, server->port);
 
 	const char *user = server->username[0] ? server->username : NULL;
 
-	if (smb2_connect_share(smb2, host, server->share, user) != 0) {
-		*out_error = SMB_ERR_FAILED;
+	if (smb2_connect_share(smb2, host, share, user) != 0) {
+		*out_error = lastError(smb2);
 		smb2_destroy_context(smb2);
 		return NULL;
 	}
@@ -60,47 +100,22 @@ void smb_disconnect(SmbSession *session)
 	free(session);
 }
 
-int smb_list(SmbSession *session, const char *remote_path, BrowseEntry *out, int max_entries, SmbError *out_error)
-{
-	struct smb2dir *dir = smb2_opendir(session->smb2, remote_path);
-	if (!dir) {
-		*out_error = SMB_ERR_FAILED;
-		return -1;
-	}
-
-	int count = 0;
-	struct smb2dirent *entry;
-	while (count < max_entries && (entry = smb2_readdir(session->smb2, dir))) {
-		if (entry->st.smb2_type != SMB2_TYPE_DIRECTORY) continue;
-		if (strcmp(entry->name, ".") == 0 || strcmp(entry->name, "..") == 0) continue;
-
-		strncpy(out[count].name, entry->name, BROWSE_STR_MAX - 1);
-		out[count].name[BROWSE_STR_MAX - 1] = '\0';
-		out[count].is_dir = true;
-		count++;
-	}
-
-	smb2_closedir(session->smb2, dir);
-	*out_error = SMB_OK;
-	return count;
-}
-
 // dir_path is share-relative (what smb2_opendir needs); rel_prefix is
 // relative to the recursion root (what ends up in out[].rel_path). They
 // diverge as soon as the recursion root isn't the share root, which is the
-// common case (job->remote_path is normally a subfolder).
+// common case (link->remote is normally a subfolder).
 static void smbListRecurse(struct smb2_context *smb2, const char *dir_path, const char *rel_prefix,
-                            BrowseFileEntry *out, int max_entries, int *count, bool *had_error)
+                            BrowseFileEntry *out, int max_entries, int *count, SmbError *error)
 {
 	struct smb2dir *dir = smb2_opendir(smb2, dir_path);
 	if (!dir) {
-		*had_error = true;
+		*error = lastError(smb2);
 		return;
 	}
 
 	struct smb2dirent *entry;
-	while (*count < max_entries && (entry = smb2_readdir(smb2, dir))) {
-		if (strcmp(entry->name, ".") == 0 || strcmp(entry->name, "..") == 0) continue;
+	while ((entry = smb2_readdir(smb2, dir))) {
+		if (hide((char *)entry->name)) continue; // also covers "." and ".."
 
 		char child_path[BROWSE_STR_MAX];
 		browse_path_push(child_path, dir_path, entry->name);
@@ -108,10 +123,14 @@ static void smbListRecurse(struct smb2_context *smb2, const char *dir_path, cons
 		browse_path_push(child_rel, rel_prefix, entry->name);
 
 		if (entry->st.smb2_type == SMB2_TYPE_DIRECTORY) {
-			smbListRecurse(smb2, child_path, child_rel, out, max_entries, count, had_error);
-			if (*had_error) break;
+			smbListRecurse(smb2, child_path, child_rel, out, max_entries, count, error);
+			if (*error != SMB_OK) break;
 		}
 		else if (entry->st.smb2_type == SMB2_TYPE_FILE) {
+			if (*count >= max_entries) {
+				*error = SMB_ERR_TOO_MANY_FILES;
+				break;
+			}
 			snprintf(out[*count].rel_path, BROWSE_STR_MAX, "%s", child_rel);
 			out[*count].size = (long long)entry->st.smb2_size;
 			(*count)++;
@@ -124,21 +143,16 @@ static void smbListRecurse(struct smb2_context *smb2, const char *dir_path, cons
 int smb_list_files_recursive(SmbSession *session, const char *remote_path, BrowseFileEntry *out, int max_entries, SmbError *out_error)
 {
 	int count = 0;
-	bool had_error = false;
-	smbListRecurse(session->smb2, remote_path, "", out, max_entries, &count, &had_error);
-	if (had_error) {
-		*out_error = SMB_ERR_FAILED;
-		return -1;
-	}
 	*out_error = SMB_OK;
-	return count;
+	smbListRecurse(session->smb2, remote_path, "", out, max_entries, &count, out_error);
+	return *out_error == SMB_OK ? count : -1;
 }
 
 SmbFile *smb_open_read(SmbSession *session, const char *remote_path, SmbError *out_error)
 {
 	struct smb2fh *fh = smb2_open(session->smb2, remote_path, O_RDONLY);
 	if (!fh) {
-		*out_error = SMB_ERR_FAILED;
+		*out_error = lastError(session->smb2);
 		return NULL;
 	}
 
@@ -151,7 +165,8 @@ SmbFile *smb_open_read(SmbSession *session, const char *remote_path, SmbError *o
 
 int smb_read_chunk(SmbFile *file, uint8_t *buf, uint32_t buf_size)
 {
-	return smb2_read(file->smb2, file->fh, buf, buf_size);
+	int n = smb2_read(file->smb2, file->fh, buf, buf_size);
+	return n < 0 ? -1 : n;
 }
 
 void smb_close_read(SmbFile *file)

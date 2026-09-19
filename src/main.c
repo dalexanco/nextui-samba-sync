@@ -1,40 +1,18 @@
 // Samba Sync.pak -- pull-sync folders from Samba/SMB shares onto the SD
-// card. Servers are declared offline in Samba Servers/<name>/server.txt;
-// see ../SPEC.md for the UX and ../docs/ARCHITECTURE.md for the design.
-//
-// Every screen from SPEC.md is wired below. Écran 5 (Erreur) is reached
-// from écran 4's blocking failures only -- job_wizard.c's own
-// connection-test/remote-browse failures still show inline, see
-// screens/error.h. Écrans 3bis/4/5bis each have a multi-job mode (driven by
-// sync_queue.c) for écran 0's "Tout synchroniser" action, alongside their
-// existing single-job mode reached from écran 1 -- see screens/preview.h,
-// screens/progress.h, screens/summary.h.
+// card. Everything to sync ("links") is declared offline in
+// SDCARD_PATH "/Samba Sync.toml"; the UI only checks, triggers and reports.
+// See ../SPEC.md for the UX and ../docs/ARCHITECTURE.md for the design.
 
 #include <stdbool.h>
-#include <stdint.h>
 #include <stdlib.h>
 #include <signal.h>
-#include <time.h>
 #include <msettings.h>
-
-#include <smb2/smb2.h>
-#include <smb2/libsmb2.h>
 
 #include "defines.h"
 #include "api.h"
-#include "servers.h"
-#include "jobs.h"
 #include "sync_queue.h"
-#include "settings.h"
-#include "screens/home.h"
-#include "screens/jobs_list.h"
-#include "screens/servers_list.h"
-#include "screens/job_wizard.h"
-#include "screens/preview.h"
-#include "screens/progress.h"
-#include "screens/summary.h"
-#include "screens/settings.h"
-#include "screens/error.h"
+#include "screens/links_list.h"
+#include "screens/link_detail.h"
 
 static bool quit = false;
 
@@ -43,31 +21,9 @@ static void sigHandler(int sig)
 	if (sig == SIGINT || sig == SIGTERM) quit = true;
 }
 
-// Proves the Makefile's libsmb2 include/link wiring actually works end to
-// end (a static lib with no referenced symbols can "link" successfully
-// while silently contributing nothing) -- not a functional SMB check.
-static void checkLibsmb2Linked(void)
-{
-	struct smb2_context *smb2 = smb2_init_context();
-	if (smb2) {
-		LOG_info("sambasync: libsmb2 context init OK\n");
-		smb2_destroy_context(smb2);
-	}
-	else {
-		LOG_info("sambasync: libsmb2 context init FAILED\n");
-	}
-}
-
 typedef enum {
-	SCREEN_HOME,
-	SCREEN_JOBS_LIST,
-	SCREEN_SERVERS_LIST,
-	SCREEN_JOB_WIZARD,
-	SCREEN_PREVIEW,
-	SCREEN_PROGRESS,
-	SCREEN_SUMMARY,
-	SCREEN_SETTINGS,
-	SCREEN_ERROR,
+	SCREEN_LINKS_LIST,
+	SCREEN_LINK_DETAIL,
 } Screen;
 
 int main(int argc, char *argv[])
@@ -84,15 +40,11 @@ int main(int argc, char *argv[])
 	signal(SIGINT, sigHandler);
 	signal(SIGTERM, sigHandler);
 
-	checkLibsmb2Linked();
+	// SPEC.md: checking starts as soon as the pak opens.
+	sync_queue_reload();
+	sync_queue_check_all();
 
-	servers_rescan();
-	jobs_rescan();
-	settings_load();
-
-	Screen active_screen = SCREEN_HOME;
-	const Job *sync_job = NULL; // carries the selected job from écran 1 through écran 3bis into écran 4
-
+	Screen active_screen = SCREEN_LINKS_LIST;
 	int dirty = 1;
 	int show_setting = 0;
 	while (!quit) {
@@ -100,119 +52,20 @@ int main(int argc, char *argv[])
 		PAD_poll();
 
 		switch (active_screen) {
-		case SCREEN_HOME: {
-			HomeAction action = Home_input();
-			if (action == HOME_ACTION_QUIT) quit = true;
-			else if (action == HOME_ACTION_MANAGE_JOBS) {
-				JobsList_reset();
-				active_screen = SCREEN_JOBS_LIST;
-				dirty = 1;
-			}
-			else if (action == HOME_ACTION_SYNC_ALL) {
-				Preview_enterAll();
-				active_screen = SCREEN_PREVIEW;
+		case SCREEN_LINKS_LIST: {
+			LinksListAction action = LinksList_input(&dirty);
+			if (action == LINKS_LIST_ACTION_QUIT) quit = true;
+			else if (action == LINKS_LIST_ACTION_DETAIL) {
+				LinkDetail_enter(LinksList_selected());
+				active_screen = SCREEN_LINK_DETAIL;
 				dirty = 1;
 			}
 			break;
 		}
-		case SCREEN_JOBS_LIST: {
-			JobsListAction action = JobsList_input(&dirty);
-			if (action == JOBS_LIST_ACTION_BACK) {
-				active_screen = SCREEN_HOME;
-				dirty = 1;
-			}
-			else if (action == JOBS_LIST_ACTION_SETTINGS) {
-				Settings_reset();
-				active_screen = SCREEN_SETTINGS;
-				dirty = 1;
-			}
-			else if (action == JOBS_LIST_ACTION_NEW_JOB) {
-				JobWizard_reset();
-				active_screen = SCREEN_JOB_WIZARD;
-				dirty = 1;
-			}
-			else if (action == JOBS_LIST_ACTION_SYNC_JOB) {
-				sync_job = JobsList_selectedJob();
-				Preview_enter(sync_job);
-				active_screen = SCREEN_PREVIEW;
-				dirty = 1;
-			}
-			break;
-		}
-		case SCREEN_PREVIEW: {
-			PreviewAction action = Preview_input(&dirty);
-			if (action == PREVIEW_ACTION_BACK) {
-				active_screen = Preview_isMultiMode() ? SCREEN_HOME : SCREEN_JOBS_LIST;
-				dirty = 1;
-			}
-			else if (action == PREVIEW_ACTION_START_SYNC) {
-				if (Preview_isMultiMode()) Progress_enterAll();
-				else Progress_enter(sync_job);
-				active_screen = SCREEN_PROGRESS;
-				dirty = 1;
-			}
-			break;
-		}
-		case SCREEN_PROGRESS: {
-			ProgressAction action = Progress_input(&dirty);
-			if (action == PROGRESS_ACTION_BACK) {
-				active_screen = Progress_isMultiMode() ? SCREEN_HOME : SCREEN_JOBS_LIST;
-				dirty = 1;
-			}
-			else if (action == PROGRESS_ACTION_DONE) {
-				if (Progress_isMultiMode()) Summary_enterAll();
-				else Summary_enter(sync_job);
-				active_screen = SCREEN_SUMMARY;
-				dirty = 1;
-			}
-			else if (action == PROGRESS_ACTION_ERROR) {
-				Error_enter(Progress_errorMessage());
-				active_screen = SCREEN_ERROR;
-				dirty = 1;
-			}
-			break;
-		}
-		case SCREEN_SUMMARY: {
-			SummaryAction action = Summary_input(&dirty);
-			if (action == SUMMARY_ACTION_BACK) {
-				active_screen = Summary_isMultiMode() ? SCREEN_HOME : SCREEN_JOBS_LIST;
-				dirty = 1;
-			}
-			break;
-		}
-		case SCREEN_ERROR: {
-			ErrorAction action = Error_input(&dirty);
-			if (action == ERROR_ACTION_BACK) {
-				active_screen = SCREEN_JOBS_LIST;
-				dirty = 1;
-			}
-			break;
-		}
-		case SCREEN_SERVERS_LIST: {
-			ServersListAction action = ServersList_input(&dirty);
-			if (action == SERVERS_LIST_ACTION_BACK) {
-				active_screen = SCREEN_SETTINGS;
-				dirty = 1;
-			}
-			break;
-		}
-		case SCREEN_SETTINGS: {
-			SettingsAction action = Settings_input(&dirty);
-			if (action == SETTINGS_ACTION_BACK) {
-				active_screen = SCREEN_JOBS_LIST;
-				dirty = 1;
-			}
-			else if (action == SETTINGS_ACTION_VIEW_SERVERS) {
-				ServersList_reset();
-				active_screen = SCREEN_SERVERS_LIST;
-				dirty = 1;
-			}
-			break;
-		}
-		case SCREEN_JOB_WIZARD: {
-			JobWizardAction action = JobWizard_input(&dirty);
-			if (action == JOB_WIZARD_ACTION_CANCEL || action == JOB_WIZARD_ACTION_SAVED) {
-				active_screen = SCREEN_JOBS_LIST;
+		case SCREEN_LINK_DETAIL: {
+			LinkDetailAction action = LinkDetail_input(&dirty);
+			if (action == LINK_DETAIL_ACTION_BACK) {
+				active_screen = SCREEN_LINKS_LIST;
 				dirty = 1;
 			}
 			break;
@@ -223,17 +76,9 @@ int main(int argc, char *argv[])
 
 		if (dirty) {
 			switch (active_screen) {
-			case SCREEN_HOME: Home_render(screen, show_setting); break;
-			case SCREEN_JOBS_LIST: JobsList_render(screen, show_setting); break;
-			case SCREEN_SERVERS_LIST: ServersList_render(screen, show_setting); break;
-			case SCREEN_JOB_WIZARD: JobWizard_render(screen, show_setting); break;
-			case SCREEN_PREVIEW: Preview_render(screen, show_setting); break;
-			case SCREEN_PROGRESS: Progress_render(screen, show_setting); break;
-			case SCREEN_SUMMARY: Summary_render(screen, show_setting); break;
-			case SCREEN_SETTINGS: Settings_render(screen, show_setting); break;
-			case SCREEN_ERROR: Error_render(screen, show_setting); break;
+			case SCREEN_LINKS_LIST: LinksList_render(screen, show_setting); break;
+			case SCREEN_LINK_DETAIL: LinkDetail_render(screen, show_setting); break;
 			}
-
 			GFX_flip(screen);
 			dirty = 0;
 		}
@@ -241,6 +86,9 @@ int main(int argc, char *argv[])
 			GFX_sync();
 		}
 	}
+
+	// Quitting mid-sync (SIGTERM) must not leave a .part file behind.
+	if (sync_queue_mode() != QUEUE_IDLE) sync_queue_cancel();
 
 	QuitSettings();
 	PWR_quit();
