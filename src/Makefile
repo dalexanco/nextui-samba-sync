@@ -79,14 +79,16 @@ INCDIR = -I. -I$(NEXTUI_ALL)/common -I$(NEXTUI_PLATFORM) -I$(SMB2_DIR)/include
 # collide with another's, and so the two source dirs never collide with each
 # other despite both being reached through a variable prefix.
 
-LOCAL_SRC     = main.c ui.c servers.c jobs.c settings.c smb_client.c browse.c local_fs.c sync_engine.c sync_queue.c screens/home.c screens/jobs_list.c screens/servers_list.c screens/job_wizard.c screens/preview.c screens/progress.c screens/summary.c screens/settings.c screens/error.c
+LOCAL_SRC     = main.c ui.c sync_config.c servers.c jobs.c settings.c smb_client.c browse.c local_fs.c sync_engine.c sync_queue.c screens/home.c screens/jobs_list.c screens/servers_list.c screens/job_wizard.c screens/preview.c screens/progress.c screens/summary.c screens/settings.c screens/error.c
+VENDOR_SRC    = vendor/tomlc17/tomlc17.c
 COMMON_SRC    = utils.c api.c config.c scaler.c
 PLATFORM_SRC  = platform.c
 
 LOCAL_OBJS    = $(patsubst %.c,$(OBJ_DIR)/%.o,$(LOCAL_SRC))
+VENDOR_OBJS   = $(patsubst %.c,$(OBJ_DIR)/%.o,$(VENDOR_SRC))
 COMMON_OBJS   = $(patsubst %.c,$(OBJ_DIR)/ext/common/%.o,$(COMMON_SRC))
 PLATFORM_OBJS = $(patsubst %.c,$(OBJ_DIR)/ext/platform/%.o,$(PLATFORM_SRC))
-APP_OBJS      = $(LOCAL_OBJS) $(COMMON_OBJS) $(PLATFORM_OBJS)
+APP_OBJS      = $(LOCAL_OBJS) $(VENDOR_OBJS) $(COMMON_OBJS) $(PLATFORM_OBJS)
 
 ###########################################################
 # Compiler / linker flags
@@ -110,6 +112,11 @@ $(PRODUCT): $(APP_OBJS)
 $(OBJ_DIR)/%.o: %.c
 	@mkdir -p $(@D)
 	$(CC) -c $(CFLAGS) $(MY_CFLAGS) -o $@ $<
+
+# tomlc17 needs C11 (static_assert); the later -std wins over MY_CFLAGS' gnu99.
+$(VENDOR_OBJS): $(OBJ_DIR)/%.o: %.c
+	@mkdir -p $(@D)
+	$(CC) -c $(CFLAGS) $(MY_CFLAGS) -std=gnu11 -o $@ $<
 
 $(OBJ_DIR)/ext/common/%.o: $(NEXTUI_ALL)/common/%.c
 	@mkdir -p $(@D)
