@@ -20,19 +20,15 @@ card out.
 
 Captured on a TrimUI Brick (tg5040) running the pak against a real SMB share.
 
-**The links, after a sync** — every link and its status; the footer says when
-the last sync ran.
+<p align="center">
+  <img src="docs/screenshots/links-list.png" alt="The list of links, each with its status" width="280">
+  <img src="docs/screenshots/syncing.png" alt="A link syncing, showing its progress in percent" width="280">
+  <img src="docs/screenshots/link-detail.png" alt="A link's detail screen with its last sync" width="280">
+</p>
 
-![The list of links, each with its status](docs/screenshots/links-list.png)
-
-**A sync running** — links are synced in order, on the same screen: the active
-one shows the share of data transferred.
-
-![A link syncing, showing its progress in percent](docs/screenshots/syncing.png)
-
-**One link's detail** — check, last sync and, if any, the files that failed.
-
-![A link's detail screen with its last sync](docs/screenshots/link-detail.png)
+Left to right: **the links after a sync**, each with its status — **a sync
+running**, the active link showing the share of data transferred — **one
+link's detail**, its check, its last sync and, if any, the files that failed.
 
 ## Contents
 
