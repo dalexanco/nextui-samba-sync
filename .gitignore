@@ -7,6 +7,7 @@ src/build/
 bin/tg5040/sambasync.elf
 bin/tg5050/sambasync.elf
 bin/desktop/sambasync.elf
+bin/desktop/sambasync.elf.dSYM/
 dist/
 
 lib/build/

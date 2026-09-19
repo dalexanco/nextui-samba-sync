@@ -17,7 +17,10 @@ if [ -f "$BUILD/lib/libsmb2.a" ]; then
     exit 0
 fi
 
-CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF -DENABLE_EXAMPLES=OFF -DENABLE_LIBDCERPC=OFF -DCMAKE_BUILD_TYPE=Release"
+# Kerberos is explicitly off (NTLM/guest only): left to auto-detection it
+# stays off in the device toolchains (no krb5 in their sysroot) but turns on
+# natively on macOS, which then fails to link against the system GSS.
+CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF -DENABLE_EXAMPLES=OFF -DENABLE_LIBDCERPC=OFF -DENABLE_LIBKRB5=OFF -DENABLE_GSSAPI=OFF -DCMAKE_BUILD_TYPE=Release"
 if [ "$PLATFORM" != "desktop" ]; then
     CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_TOOLCHAIN_FILE=$HERE/libsmb2-toolchain.cmake"
 fi
