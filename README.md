@@ -161,13 +161,15 @@ The pak has two screens.
 ### Main screen — the list of links
 
 Checking starts as soon as the pak opens, one link after another. Each line
-shows the link name, `[Mirror]` if it is in mirror mode, and its status:
+shows the link name and its status (the mode is on the detail screen):
 
 | Status                          | Meaning                                       |
 |---------------------------------|-----------------------------------------------|
 | `Waiting` / `Checking…`         | Waiting its turn / being checked              |
 | `[New]`                         | Something to sync — counts are on the detail screen |
 | `Up to date`                    | Nothing to copy or delete                     |
+| `[Done]`                        | Synced — counts are on the detail screen       |
+| `Partial · K errors`            | Synced, but some files failed                 |
 | `Error: …`                      | The check failed (network, credentials, path) |
 | `Config: …`                     | The file is wrong for this link               |
 
@@ -184,8 +186,8 @@ The bottom line shows when the last sync ran and how many links failed.
 ### Running a sync
 
 Press **A**. Links are synced one after another, on this same screen: the
-active line shows the file being copied and the progress **by volume**
-(percentage of the total to copy, and that total). A failing link never stops
+active line shows its progress **by volume** (percentage of the data to copy
+that has been transferred; deletions are not counted). A failing link never stops
 the ones after it — its error is recorded and shown.
 
 **B** cancels the current link and all remaining ones. Whatever was already

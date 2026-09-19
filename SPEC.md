@@ -140,7 +140,7 @@ While checking:
 ```
 Samba Sync
 ─────────────────────────────────────────
-▸ Roms GBA    [Mirror]   [New]
+▸ Roms GBA               [New]
   Roms SNES              Checking…
   Bios                   Waiting
 
@@ -152,7 +152,7 @@ Check finished:
 ```
 Samba Sync
 ─────────────────────────────────────────
-▸ Roms GBA    [Mirror]   [New]
+▸ Roms GBA               [New]
   Roms SNES              Up to date
   Bios                   Error: Server unreachable
   Saves                  Config: share missing
@@ -192,8 +192,8 @@ The sync runs **on the main screen**, with no dedicated progress screen:
 ```
 Syncing 2/4
 ─────────────────────────────────────────
-  Roms GBA    [Mirror]   12 copied · 3 deleted
-▸ Roms SNES              Chrono Trigger.sfc · 62% of 1.4 GB
+  Roms GBA               [Done]
+▸ Roms SNES                                   62%
   Bios                   Waiting
   Saves                  Config: share missing
 
@@ -205,11 +205,13 @@ B  Cancel
 - For each link: connect → remote listing → comparison with the local side (redone right before
   copying, so mirror deletions rest on an up-to-date diff) → copy file by file → **in mirror mode**,
   deletions last, only if every copy succeeded.
-- The active link's line shows the current file and the **progress by volume** (percentage of the
-  total to copy, and that total). The number of files says little about the time left when file
-  sizes vary; the volume does. During mirror mode's deletion phase the line shows `Deleting n/N`.
-- When a link finishes, its line shows its result: `N copied · M deleted`, `Up to date`,
-  `Partial · N copied · K errors` if some files failed, or `Error: <reason>`.
+- The active link's line shows only its **progress by volume**: the percentage of the data left to
+  copy that has been transferred. The number of files says little about the time left when file
+  sizes vary; the volume does. Deletions transfer nothing, so they are left out of the percentage:
+  during mirror mode's deletion phase the line stays at `100%`.
+- When a link finishes, its line says whether it worked, not how much it moved: `[Done]`,
+  `Up to date` if there was nothing to do, `Partial · K errors` if some files failed, or
+  `Error: <reason>`. The counts are on screen 2, next to the errors that explain them.
 - **A failure does not interrupt the queue**: the error is recorded and the next link starts.
 - **B**: cancels the current link and every remaining one. What was already copied stays in place;
   mirror deletions already done are not undone, the remaining ones are not performed. The current

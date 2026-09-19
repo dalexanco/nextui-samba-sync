@@ -91,7 +91,7 @@ static void statusText(int index, char *out, size_t out_size)
 		return;
 	}
 
-	char a[64], b[64];
+	char a[64];
 	switch (sync_queue_phase(index)) {
 	case LINK_PHASE_IDLE:
 		snprintf(out, out_size, "Not checked");
@@ -115,19 +115,16 @@ static void statusText(int index, char *out, size_t out_size)
 	case LINK_PHASE_SYNCING: {
 		SyncState state = sync_engine_state();
 		SyncProgress p = sync_engine_progress();
-		if (state == SYNC_STATE_DELETING) {
-			snprintf(out, out_size, "Deleting %d/%d", p.files_deleted, p.to_delete_count);
-		}
-		else if (state == SYNC_STATE_COPYING && p.current_file[0]) {
-			// Progress by volume, not by file count: files vary wildly in
-			// size, so "5/8" tells you little about how long is left.
-			int percent = p.to_copy_bytes > 0 ? (int)(p.bytes_done * 100 / p.to_copy_bytes) : 100;
-			if (percent > 100) percent = 100;
-			const char *name = strrchr(p.current_file, '/');
-			name = name ? name + 1 : p.current_file;
-			char total[32];
-			UI_formatBytes(p.to_copy_bytes, total, sizeof(total));
-			snprintf(out, out_size, "%s · %d%% of %s", name, percent, total);
+		if (state == SYNC_STATE_COPYING || state == SYNC_STATE_DELETING) {
+			// Progress by volume of data only: files vary wildly in size, so
+			// "5/8" tells you little, and deletions cost no transfer at all
+			// so they stay out of the percentage (deleting means 100%).
+			int percent = 100;
+			if (state == SYNC_STATE_COPYING && p.to_copy_bytes > 0) {
+				percent = (int)(p.bytes_done * 100 / p.to_copy_bytes);
+				if (percent > 100) percent = 100;
+			}
+			snprintf(out, out_size, "%d%%", percent);
 		}
 		else {
 			snprintf(out, out_size, "Connecting…");
@@ -135,28 +132,25 @@ static void statusText(int index, char *out, size_t out_size)
 		return;
 	}
 	case LINK_PHASE_SYNCED: {
+		// A finished link says whether it worked, not how much it moved: the
+		// counts are on screen 2, next to the errors that explain them.
 		const LinkState *last = sync_queue_last(index);
-		plural(a, sizeof(a), last->files_copied, "copied", "copied");
-		plural(b, sizeof(b), last->files_deleted, "deleted", "deleted");
 		if (last->status == LINK_STATUS_ERROR) {
 			snprintf(out, out_size, "Error: %s", last->error_count > 0 ? last->errors[0].reason : "failed");
 		}
 		else if (last->status == LINK_STATUS_CANCELLED) {
+			plural(a, sizeof(a), last->files_copied, "copied", "copied");
 			snprintf(out, out_size, "Cancelled · %s", a);
 		}
 		else if (last->status == LINK_STATUS_PARTIAL) {
-			char c[64];
-			plural(c, sizeof(c), last->error_total, "error", "errors");
-			snprintf(out, out_size, "Partial · %s · %s", a, c);
+			plural(a, sizeof(a), last->error_total, "error", "errors");
+			snprintf(out, out_size, "Partial · %s", a);
 		}
 		else if (last->files_copied == 0 && last->files_deleted == 0) {
 			snprintf(out, out_size, "Up to date");
 		}
-		else if (last->files_deleted > 0) {
-			snprintf(out, out_size, "%s · %s", a, b);
-		}
 		else {
-			snprintf(out, out_size, "%s", a);
+			snprintf(out, out_size, "[Done]");
 		}
 		return;
 	}
@@ -184,10 +178,9 @@ static void renderRow(SDL_Surface *screen, int index, bool is_selected, int y)
 	int status_w = UI_fitText(font.small, status, status_fit, sizeof(status_fit), (w - inner * 2) * 6 / 10);
 
 	char label[CONFIG_STR_MAX + 32];
-	snprintf(label, sizeof(label), "%s%s%s",
+	snprintf(label, sizeof(label), "%s%s",
 	         link_state_failed(sync_queue_last(index)) ? "! " : "",
-	         link->name,
-	         link->mode == LINK_MODE_MIRROR ? " [Mirror]" : "");
+	         link->name);
 	char label_fit[sizeof(label)];
 	UI_fitText(font.medium, label, label_fit, sizeof(label_fit), w - inner * 3 - status_w);
 
