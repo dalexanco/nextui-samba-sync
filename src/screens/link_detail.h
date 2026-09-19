@@ -3,7 +3,7 @@
 
 #include "api.h"
 
-// Écran 2 (SPEC.md): read-only detail of one link -- its configuration, its
+// Screen 2 (SPEC.md): read-only detail of one link -- its configuration, its
 // latest check, and its persisted last sync with the list of errors.
 
 typedef enum {

@@ -19,7 +19,7 @@ static int timeout = DEFAULT_TIMEOUT;
 static ConfigStatus status = CONFIG_MISSING;
 static char error_message[CONFIG_ERROR_MAX + 64];
 
-// Reads an optional string key. Returns false (and writes a French reason
+// Reads an optional string key. Returns false (and writes a reason
 // into error) only if the key is present with a non-string type; a missing
 // key leaves out untouched.
 static bool readString(toml_datum_t table, const char *key, char *out, size_t out_size,
@@ -28,7 +28,7 @@ static bool readString(toml_datum_t table, const char *key, char *out, size_t ou
 	toml_datum_t d = toml_get(table, key);
 	if (d.type == TOML_UNKNOWN) return true;
 	if (d.type != TOML_STRING) {
-		snprintf(error, error_size, "Config : « %s » doit être une chaîne", key);
+		snprintf(error, error_size, "Config: “%s” must be a string", key);
 		return false;
 	}
 	snprintf(out, out_size, "%s", d.u.s);
@@ -42,7 +42,7 @@ static void parseServer(const char *name, toml_datum_t table, Server *out)
 	out->port = DEFAULT_PORT;
 
 	if (table.type != TOML_TABLE) {
-		snprintf(out->error, sizeof(out->error), "Config : serveur « %s » invalide", name);
+		snprintf(out->error, sizeof(out->error), "Config: invalid server “%s”", name);
 		return;
 	}
 
@@ -58,11 +58,11 @@ static void parseServer(const char *name, toml_datum_t table, Server *out)
 		out->port = (int)port.u.int64;
 	}
 	else if (port.type != TOML_UNKNOWN) {
-		snprintf(e, es, "Config : port du serveur « %s » invalide", name);
+		snprintf(e, es, "Config: invalid port for server “%s”", name);
 		return;
 	}
 
-	if (!out->host[0]) snprintf(e, es, "Config : host manquant pour « %s »", name);
+	if (!out->host[0]) snprintf(e, es, "Config: host missing for “%s”", name);
 }
 
 static const Server *findServer(const char *name)
@@ -108,7 +108,7 @@ static void parseLink(const char *name, toml_datum_t table, Link *out)
 	size_t es = sizeof(out->config_error);
 
 	if (table.type != TOML_TABLE) {
-		snprintf(e, es, "Config : liaison invalide");
+		snprintf(e, es, "Config: invalid link");
 		return;
 	}
 
@@ -121,21 +121,21 @@ static void parseLink(const char *name, toml_datum_t table, Link *out)
 
 	// "local" is checked for traversal before trimming, so "/Roms" (absolute)
 	// is rejected rather than silently turned into "Roms".
-	if (!out->server_name[0]) { snprintf(e, es, "Config : server manquant"); return; }
-	if (!out->share[0]) { snprintf(e, es, "Config : share manquant"); return; }
-	if (!out->local[0]) { snprintf(e, es, "Config : local manquant"); return; }
-	if (!isSafeLocalPath(out->local)) { snprintf(e, es, "Config : local doit rester dans la carte SD"); return; }
+	if (!out->server_name[0]) { snprintf(e, es, "Config: server missing"); return; }
+	if (!out->share[0]) { snprintf(e, es, "Config: share missing"); return; }
+	if (!out->local[0]) { snprintf(e, es, "Config: local missing"); return; }
+	if (!isSafeLocalPath(out->local)) { snprintf(e, es, "Config: local must stay inside the SD card"); return; }
 	trimSlashes(out->remote);
 	trimSlashes(out->local);
-	if (!out->local[0]) { snprintf(e, es, "Config : local manquant"); return; }
+	if (!out->local[0]) { snprintf(e, es, "Config: local missing"); return; }
 
 	if (!mode[0] || strcmp(mode, "add") == 0) out->mode = LINK_MODE_ADD;
 	else if (strcmp(mode, "mirror") == 0) out->mode = LINK_MODE_MIRROR;
-	else { snprintf(e, es, "Config : mode « %s » inconnu", mode); return; }
+	else { snprintf(e, es, "Config: unknown mode “%s”", mode); return; }
 
 	out->server = findServer(out->server_name);
 	if (!out->server) {
-		snprintf(e, es, "Config : serveur « %s » introuvable", out->server_name);
+		snprintf(e, es, "Config: server “%s” not found", out->server_name);
 		return;
 	}
 	if (out->server->error[0]) {
@@ -144,9 +144,8 @@ static void parseLink(const char *name, toml_datum_t table, Link *out)
 	}
 }
 
-// tomlc17 reports "(line N) message"; reshaped into the "<file>, ligne N :
-// message" form SPEC.md shows. The message itself stays in the parser's
-// English.
+// tomlc17 reports "(line N) message"; reshaped into the
+// "<file>, line N: message" form SPEC.md shows.
 static void formatParseError(const char *errmsg)
 {
 	int line = 0;
@@ -154,7 +153,7 @@ static void formatParseError(const char *errmsg)
 	if (sscanf(errmsg, "(line %d)%n", &line, &consumed) == 1 && consumed > 0) {
 		const char *rest = errmsg + consumed;
 		while (*rest == ' ') rest++;
-		snprintf(error_message, sizeof(error_message), "%s, ligne %d : %s", CONFIG_FILE_NAME, line, rest);
+		snprintf(error_message, sizeof(error_message), "%s, line %d: %s", CONFIG_FILE_NAME, line, rest);
 	}
 	else {
 		snprintf(error_message, sizeof(error_message), "%s : %s", CONFIG_FILE_NAME, errmsg);

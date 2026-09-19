@@ -28,8 +28,8 @@ typedef enum {
 	SMB_ERR_FAILED,          // anything else
 } SmbError;
 
-// Short French label for an error, as shown on the main screen
-// ("Serveur injoignable").
+// Short label for an error, as shown on the main screen
+// ("Server unreachable").
 const char *smb_error_label(SmbError error);
 
 // Connects to server->host:server->port and tree-connects `share`,

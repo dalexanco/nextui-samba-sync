@@ -57,13 +57,13 @@ static bool localFullPath(char *out, size_t out_size, const char *rel)
 static const char *localErrorLabel(int err)
 {
 	switch (err) {
-	case ENOSPC: return "Espace disque insuffisant";
+	case ENOSPC: return "Not enough disk space";
 	case EACCES:
 	case EPERM:
-	case EROFS: return "Écriture refusée";
-	case ENAMETOOLONG: return "Nom de fichier trop long";
+	case EROFS: return "Write denied";
+	case ENAMETOOLONG: return "File name too long";
 	}
-	return "Écriture impossible";
+	return "Cannot write file";
 }
 
 static int compareEntries(const void *a, const void *b)
@@ -104,13 +104,13 @@ static LinkCheck runCheck(const Link *link, SmbSession **out_session)
 	if (stat(local_root, &st) == 0) {
 		if (!S_ISDIR(st.st_mode)) {
 			smb_disconnect(s);
-			snprintf(check.message, sizeof(check.message), "Le chemin local n'est pas un dossier");
+			snprintf(check.message, sizeof(check.message), "Local path is not a folder");
 			return check;
 		}
 		local_count = local_list_files_recursive(link->local, local_files, BROWSE_MAX_FILES);
 		if (local_count < 0) {
 			smb_disconnect(s);
-			snprintf(check.message, sizeof(check.message), "Dossier local illisible ou trop gros");
+			snprintf(check.message, sizeof(check.message), "Local folder unreadable or too large");
 			return check;
 		}
 	}
@@ -215,7 +215,7 @@ static void endCopyPhase(void)
 	}
 	else if (result.error_total > 0) {
 		// SPEC.md: mirror deletions only once every copy has succeeded.
-		fileError("", "Suppressions Miroir non effectuées (erreurs de copie)");
+		fileError("", "Mirror deletions skipped: some files failed to copy");
 		finish(SYNC_STATE_DONE);
 	}
 	else {
@@ -254,7 +254,7 @@ static void startNextCopyFile(void)
 		copy_file = smb_open_read(session, remote_path, &error);
 		if (!copy_file) {
 			if (error == SMB_ERR_UNREACHABLE) { // no answer at all: the connection is gone
-				linkError("Connexion perdue");
+				linkError("Connection lost");
 				finish(SYNC_STATE_DONE);
 				return;
 			}
@@ -309,7 +309,7 @@ void sync_engine_start(const Link *link)
 	progress.to_delete_count = check.to_delete_count;
 
 	if (!local_ensure_dir(link->local)) {
-		linkError("Dossier local impossible à créer");
+		linkError("Cannot create local folder");
 		finish(SYNC_STATE_DONE);
 		return;
 	}
@@ -325,7 +325,7 @@ static void copyStep(void)
 
 	int n = smb_read_chunk(copy_file, buf, sizeof(buf));
 	if (n < 0) {
-		linkError("Connexion perdue");
+		linkError("Connection lost");
 		finish(SYNC_STATE_DONE);
 		return;
 	}
@@ -387,7 +387,7 @@ static void deleteStep(void)
 		fileError(rel, localErrorLabel(ENAMETOOLONG));
 	}
 	else if (remove(full) != 0 && errno != ENOENT) {
-		fileError(rel, "Suppression impossible");
+		fileError(rel, "Cannot delete file");
 	}
 	else {
 		progress.files_deleted++;

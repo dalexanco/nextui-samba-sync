@@ -12,8 +12,7 @@ card out.
 > reports. Not yet validated on a real device — see
 > [Current limitations](#current-limitations).
 >
-> The console UI is in French; on-screen labels are quoted below in
-> parentheses.
+> The console UI, this README and the spec are in English.
 
 ---
 
@@ -162,25 +161,25 @@ The pak has two screens.
 ### Main screen — the list of links
 
 Checking starts as soon as the pak opens, one link after another. Each line
-shows the link name, `[Miroir]` if it is in mirror mode, and its status:
+shows the link name, `[Mirror]` if it is in mirror mode, and its status:
 
 | Status                          | Meaning                                       |
 |---------------------------------|-----------------------------------------------|
-| `En attente` / `Vérification…`  | Waiting its turn / being checked              |
-| `[Nouveau]`                     | Something to sync — counts are on the detail screen |
-| `À jour`                        | Nothing to copy or delete                     |
-| `Erreur : …`                    | The check failed (network, credentials, path) |
-| `Config : …`                    | The file is wrong for this link               |
+| `Waiting` / `Checking…`         | Waiting its turn / being checked              |
+| `[New]`                         | Something to sync — counts are on the detail screen |
+| `Up to date`                    | Nothing to copy or delete                     |
+| `Error: …`                      | The check failed (network, credentials, path) |
+| `Config: …`                     | The file is wrong for this link               |
 
 A `!` before the name means this link's **last sync** failed or was partial.
 The bottom line shows when the last sync ran and how many links failed.
 
 | Button | Action                                                           |
 |--------|------------------------------------------------------------------|
-| **A**  | Sync everything (*Synchro*) — all valid links, in order          |
-| **X**  | Re-read the file and check again (*Vérif.*)                      |
-| **Y**  | Open the selected link's detail (*Détail*)                       |
-| **B**  | Quit (*Quitter*), or cancel during a sync (*Annuler*)            |
+| **A**  | Sync everything — all valid links, in order                      |
+| **X**  | Re-read the file and check again                                 |
+| **Y**  | Open the selected link's detail                                  |
+| **B**  | Quit, or cancel during a sync                                    |
 
 ### Running a sync
 
@@ -196,7 +195,9 @@ copied stays in place, and no partly-downloaded file is ever left behind.
 
 Press **Y** on a link. It shows its configuration, the result of the last
 check, and the last sync: date, status, files copied and deleted, and the list
-of errors (up to 50, with the total). Use up/down to scroll, **B** to go back.
+of errors (up to 50, with the total). Long values, such as paths and error
+messages, wrap onto several lines rather than being cut off. Use up/down to
+scroll, **B** to go back.
 
 ## Sync modes
 
@@ -212,7 +213,7 @@ folder. Deletions:
 - happen **only after** every file copied successfully — if any file failed,
   nothing is deleted;
 - are counted on the link's detail screen after a check, before you start the
-  sync (the main screen only shows `[Nouveau]`).
+  sync (the main screen only shows `[New]`).
 
 Files are compared by **name and size**: a remote file modified without any
 size change is not re-copied.
@@ -304,11 +305,9 @@ lib/
 
 ## Technical documentation
 
-These documents are in French:
-
 - [SPEC.md](SPEC.md): detailed functional spec (screens, flows, behavior).
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): architecture, data model,
-  build, error handling, technical risks.
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (in French): architecture, data
+  model, build, error handling, technical risks.
 
 ## Credits and licenses
 

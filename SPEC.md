@@ -1,329 +1,314 @@
-# NextUI Samba Sync — Spécifications (v2)
+# NextUI Samba Sync — Specification (v2)
 
-Pak (type `TOOL`) pour NextUI, permettant de synchroniser (pull uniquement) des dossiers depuis un
-partage Samba/SMB du réseau local vers la carte SD de la console.
+A NextUI pak (`TOOL` type) that syncs folders (pull only) from a Samba/SMB share on the local
+network onto the console's SD card.
 
-Inspiré de la structure et du style de [`nextui-gift-code`](https://github.com/dalexanco/nextui-gift-code)
-(pak minimaliste en C, pas de dépendances lourdes, UI en state-machine avec les widgets partagés de
-NextUI).
+Inspired by the structure and style of [`nextui-gift-code`](https://github.com/dalexanco/nextui-gift-code)
+(minimal C pak, no heavy dependencies, state-machine UI built on NextUI's shared widgets).
 
-## Ce qui change par rapport à la v1
+## What changed since v1
 
-La v1 construisait les jobs sur la console (choix du serveur, navigation distante, navigation
-locale). La v2 sépare strictement les deux rôles :
+v1 built its jobs on the console (pick a server, browse the remote share, browse the SD card). v2
+separates the two roles strictly:
 
-- **Tout ce qui décrit la synchro est dans la config** : serveurs, dossiers distants, dossiers
-  locaux cibles, mode. Un seul fichier, édité hors-ligne.
-- **L'UI ne fait que déclencher et informer** : elle affiche l'état de chaque liaison, lance la
-  synchro, et montre le résultat. Aucune création/édition depuis la console, aucun navigateur de
-  fichiers, aucun écran de réglages.
+- **Everything describing the sync lives in the config**: servers, remote folders, local
+  destinations, mode. One file, edited offline.
+- **The UI only triggers and reports**: it shows each link's status, starts the sync and shows the
+  result. No creating or editing on the console, no file browser, no settings screen.
 
-## Portée v2
+## Scope of v2
 
-- **Pull uniquement** : la console télécharge depuis le partage vers la SD. Le contenu distant
-  n'est jamais modifié.
-- Une ou plusieurs **liaisons** déclarées dans le fichier de config.
-- Chaque liaison a un **mode** : *Ajout* (`add`, défaut) ou *Miroir* (`mirror`).
-- Vérification automatique à l'ouverture du pak, synchro manuelle de toutes les liaisons en une
-  touche. Pas de synchro en arrière-plan.
+- **Pull only**: the console downloads from the share onto the SD card. Remote content is never
+  modified.
+- One or more **links** declared in the config file.
+- Each link has a **mode**: *Add* (`add`, default) or *Mirror* (`mirror`).
+- Automatic check when the pak opens, manual sync of every link in one press. No background sync.
 
 ## Concept
 
-- Une **liaison** = un dossier d'un partage SMB relié à un dossier de la carte SD (ex. :
-  `NAS Salon`, partage `Roms`, dossier `GBA` → `Roms/Game Boy Advance (GBA)` sur la SD).
-- Un **serveur** = les infos de connexion à une machine Samba (hôte, port, identifiants),
-  déclaré une fois et référencé par nom depuis les liaisons.
-- Comparaison distant/local par **nom + taille** :
-  - absent localement → copié ;
-  - présent avec une taille différente → recopié (écrasé) ;
-  - présent avec la même taille → ignoré.
-- **Mode Ajout** : copie ce qui est nouveau ou différent, ne supprime jamais rien localement.
-- **Mode Miroir** : en plus, supprime du dossier local les fichiers et sous-dossiers absents du
-  dossier distant. La suppression est strictement limitée au dossier local de la liaison. Pas
-  d'écran de confirmation : le nombre de fichiers à supprimer est affiché sur l'écran principal
-  après la vérification, avant que l'utilisateur ne lance la synchro.
-- **Aucune saisie de texte** sur la console (inchangé depuis la v1).
+- A **link** = one folder of an SMB share tied to one folder of the SD card (e.g. `Living Room NAS`,
+  share `Roms`, folder `GBA` → `Roms/Game Boy Advance (GBA)` on the SD card).
+- A **server** = the connection details of a Samba machine (host, port, credentials), declared once
+  and referenced by name from the links.
+- Remote/local comparison by **name + size**:
+  - missing locally → copied;
+  - present with a different size → copied again (overwritten);
+  - present with the same size → skipped.
+- **Add mode**: copies what is new or different, never deletes anything locally.
+- **Mirror mode**: additionally deletes, from the local folder, the files and subfolders absent from
+  the remote folder. Deletion is strictly limited to the link's local folder. No confirmation
+  screen: how many files would be deleted is shown on the link's detail screen after the check,
+  before the user starts the sync.
+- **No text entry** on the console (unchanged since v1).
 
-## Configuration (fichier)
+## Configuration (file)
 
-Un fichier unique à la racine de la SD, `Samba Sync.toml`, édité pendant que la carte est montée
-sur un ordinateur (ou via SSH). Format : [TOML](https://toml.io/fr/), lu par
-[tomlc17](https://github.com/cktan/tomlc17) (un `.c` + un `.h`, MIT, vendoré dans le dépôt ;
-tomlc99, son prédécesseur, est déclaré obsolète par son auteur).
-
-**Convention** : toutes les clés, noms de tables et valeurs énumérées sont en **anglais**. Seuls
-les noms libres choisis par l'utilisateur (nom de serveur, nom de liaison, chemins) et les textes
-affichés par l'UI sont en français.
+A single file at the root of the SD card, `Samba Sync.toml`, edited while the card is mounted on a
+computer (or over SSH). Format: [TOML](https://toml.io/en/), parsed by
+[tomlc17](https://github.com/cktan/tomlc17) (one `.c` + one `.h`, MIT, vendored in the repo;
+tomlc99, its predecessor, is declared obsolete by its author).
 
 ```toml
 [settings]
 timeout = 10
 
-[servers."NAS Salon"]
+[servers."Living Room NAS"]
 host = "192.168.1.10"
 port = 445
 username = "guest"
 password = ""
 
 [links."Roms GBA"]
-server = "NAS Salon"
+server = "Living Room NAS"
 share = "Roms"
 remote = "GBA"
 local = "Roms/Game Boy Advance (GBA)"
 mode = "mirror"
 
 [links."Roms SNES"]
-server = "NAS Salon"
+server = "Living Room NAS"
 share = "Roms"
 remote = "SNES"
 local = "Roms/Super Nintendo Entertainment System (SFC)"
 ```
 
-**Table `[settings]`** — optionnelle.
-- `timeout` — entier, délai réseau en secondes, défaut `10`.
+**Table `[settings]`** — optional.
+- `timeout` — integer, network timeout in seconds, default `10`.
 
-**Tables `[servers."<nom>"]`** — une par serveur ; `<nom>` sert d'identifiant pour les liaisons
-et est affiché dans l'écran Détail.
-- `host` — chaîne, obligatoire, IP ou nom d'hôte.
-- `port` — entier, optionnel, défaut `445`.
-- `username` / `password` — chaînes, optionnelles, vides ou absentes = accès invité.
-- `domain` — chaîne, optionnelle.
+**Tables `[servers."<name>"]`** — one per server; `<name>` identifies it for the links and is shown
+on the detail screen.
+- `host` — string, required, IP address or hostname.
+- `port` — integer, optional, default `445`.
+- `username` / `password` — strings, optional, empty or absent = guest access.
+- `domain` — string, optional.
 
-**Tables `[links."<nom>"]`** — une par liaison ; `<nom>` est le nom affiché sur la console et
-sert de clé pour l'état persistant. L'ordre des tables dans le fichier donne l'ordre d'affichage et
-d'exécution.
-- `server` — chaîne, obligatoire, nom d'une table `[servers."…"]`.
-- `share` — chaîne, obligatoire, nom du partage SMB.
-- `remote` — chaîne, optionnelle, chemin dans le partage (vide ou absent = racine du partage).
-- `local` — chaîne, obligatoire, chemin relatif à la racine de la SD. Créé s'il n'existe pas.
-- `mode` — chaîne, optionnelle : `"add"` (défaut, affiché « Ajout ») ou `"mirror"` (affiché
-  « Miroir »).
+**Tables `[links."<name>"]`** — one per link; `<name>` is the name shown on the console and the key
+of its persisted state. The order of the tables in the file gives the display and execution order.
+- `server` — string, required, name of a `[servers."…"]` table.
+- `share` — string, required, SMB share name.
+- `remote` — string, optional, path inside the share (empty or absent = share root).
+- `local` — string, required, path relative to the SD card root. Created if missing.
+- `mode` — string, optional: `"add"` (default, shown as “Add”) or `"mirror"` (shown as “Mirror”).
 
-**Ordre des liaisons** : la norme TOML ne garantit pas l'ordre des clés d'une table. Le pak
-s'appuie sur tomlc17, qui les restitue dans l'ordre du fichier (vérifié). C'est un comportement
-propre à la bibliothèque, pas à la norme : un outil externe qui reformate ou trie le fichier peut
-changer l'ordre d'affichage. À préciser dans le README.
+**Link order**: the TOML standard does not guarantee the order of a table's keys. The pak relies on
+tomlc17, which returns them in file order (verified). That is a property of the library, not of the
+standard: an external tool that reformats or sorts the file may change the display order. To be
+mentioned in the README.
 
-**Tolérance aux erreurs** :
-- Fichier absent → l'écran principal affiche un état vide expliquant où créer
+**Error tolerance**:
+- Missing file → the main screen shows an empty state explaining where to create
   `Samba Sync.toml`.
-- Fichier syntaxiquement invalide (TOML mal formé) → aucune liaison ne peut être lue : l'écran
-  principal affiche l'erreur renvoyée par le parseur, avec son numéro de ligne
-  ("Samba Sync.toml, ligne 12 : guillemet manquant").
-- Serveur mal formé (`host` manquant, `port` non entier) → ignoré ; les liaisons qui le
-  référencent apparaissent en erreur "Config : serveur « NAS Salon » invalide".
-- Liaison mal formée (champ obligatoire manquant ou du mauvais type, `server` inconnu, `local`
-  absolu ou qui sort de la SD via `..`, valeur de `mode` inconnue) →
-  **apparaît dans la liste en erreur** avec la raison ("Config : serveur « NAS » introuvable"),
-  sans bloquer les autres liaisons. Elle n'est ni vérifiée ni synchronisée.
-- Deux serveurs ou deux liaisons portant le même nom → erreur de syntaxe TOML (clé définie deux
-  fois) : c'est le cas « fichier invalide » ci-dessus, aucune liaison n'est chargée.
-- Clés inconnues ignorées, y compris les tables autres que `settings`, `servers` et `links`
-  (permet d'ajouter des options plus tard sans casser les anciennes versions du pak).
+- Syntactically invalid file (malformed TOML) → no link can be read: the main screen shows the
+  parser's error with its line number ("Samba Sync.toml, line 12: missing quote").
+- Malformed server (missing `host`, non-integer `port`) → ignored; the links referencing it show
+  the error "Config: invalid server “Living Room NAS”".
+- Malformed link (required field missing or of the wrong type, unknown `server`, `local` absolute
+  or escaping the SD card via `..`, unknown `mode` value) → **listed in error** with the reason
+  ("Config: server “NAS” not found"), without blocking the other links. It is neither checked nor
+  synced.
+- Two servers or two links with the same name → TOML syntax error (key defined twice): that is the
+  "invalid file" case above, no link is loaded.
+- Unknown keys ignored, including tables other than `settings`, `servers` and `links` (so options
+  can be added later without breaking older versions of the pak).
 
-**Sécurité** : les mots de passe sont en clair dans le fichier. À signaler dans le README.
+**Security**: passwords are stored in clear text in the file. To be flagged in the README.
 
-**État persistant** : le résultat de la dernière synchro de chaque liaison (date, statut,
-compteurs, et les 50 premières erreurs avec leur nombre total) est enregistré par le pak dans
-`$SHARED_USERDATA_PATH/samba-sync/state/<nom>.txt`, indexé par nom de liaison. Renommer une liaison
-dans le fichier fait perdre son historique.
+**Persisted state**: each link's last sync result (date, status, counters, and the first 50 errors
+along with their total count) is written by the pak to
+`$SHARED_USERDATA_PATH/samba-sync/state/<name>.txt`, keyed by link name. Renaming a link in the
+file loses its history.
 
-**Pas de symboles** : les libellés d'état n'utilisent ni ✔/✘ ni émoji. Les deux polices livrées
-avec NextUI ne les contiennent pas toutes (`font2.ttf` n'a ni ✔ ni ✘, aucune n'a ⟳/🗑/⚠) et un
-glyphe manquant s'affiche en carré vide. Seuls `·`, `—`, `…`, les guillemets français et les
-lettres accentuées sont utilisés.
+**No symbols**: status labels use neither ✔/✘ nor emoji. The two fonts shipped with NextUI don't
+contain them all (`font2.ttf` has neither ✔ nor ✘, neither font has ⟳/🗑/⚠) and a missing glyph
+renders as an empty box. Only `·`, `—`, `…`, curly quotes and accented letters are used.
+
+**Language**: keys, table names and enumerated values are English, and so is the on-screen text.
 
 ---
 
-## Écrans
+## Screens
 
-Deux écrans seulement : la liste des liaisons, et le détail d'une liaison.
+Two screens only: the list of links, and one link's detail.
 
-### 1. Écran principal — Liste des liaisons
+### 1. Main screen — list of links
 
-Affiché à l'ouverture du pak. La vérification démarre immédiatement et remplit la liste de façon
-progressive, une liaison après l'autre.
+Shown when the pak opens. Checking starts immediately and fills the list progressively, one link
+after another.
 
-Pendant la vérification :
-
-```
-Samba Sync
-─────────────────────────────────────────
-▸ Roms GBA    [Miroir]   [Nouveau]
-  Roms SNES              Vérification…
-  Bios                   En attente
-
-X  Vérif.   Y  Détail   B  Quitter
-```
-
-Vérification terminée :
+While checking:
 
 ```
 Samba Sync
 ─────────────────────────────────────────
-▸ Roms GBA    [Miroir]   [Nouveau]
-  Roms SNES              À jour
-  Bios                   Erreur : Serveur injoignable
-  Saves                  Config : share manquant
+▸ Roms GBA    [Mirror]   [New]
+  Roms SNES              Checking…
+  Bios                   Waiting
 
-  Dernière synchro : 18/09 à 18:42 · 1 échec
-
-X  Vérif.   Y  Détail   A  Synchro   B  Quitter
+X  Check   Y  Details   B  Quit
 ```
 
-**États possibles d'une liaison** (colonne de droite) :
-- `En attente` — pas encore vérifiée.
-- `Vérification…` — connexion et comparaison en cours.
-- `[Nouveau]` — il y a quelque chose à synchroniser (fichiers à copier et/ou, en mode Miroir, à
-  supprimer). **Pas de chiffres ici** : le détail (combien, quel volume, combien de suppressions)
-  est sur l'écran 2, pour que la liste reste lisible d'un coup d'œil.
-- `À jour` — rien à copier ni à supprimer.
-- `Erreur : <raison courte>` — la vérification a échoué (réseau, authentification, partage ou
-  dossier introuvable). Une config invalide affiche directement sa raison (`Config : …`).
-- `Non vérifiée` — la vérification a été interrompue avant d'atteindre cette liaison.
-- Si la **dernière synchro** de cette liaison a échoué (état persistant), un marqueur `!` est
-  ajouté devant le nom, même si la vérification courante réussit — le détail est dans l'écran 2.
-
-**Touches** :
-- **A** : Tout synchroniser (voir flux ci-dessous). Inactif tant que la vérification n'est pas
-  terminée, et si aucune liaison valide n'existe.
-- **X** : relit `Samba Sync.toml` (les modifications faites pendant que le pak tourne sont donc
-  prises en compte) puis relance la vérification de toutes les liaisons.
-- **Y** : ouvre le détail de la liaison sélectionnée → écran 2.
-- **B** : quitte le pak (pendant une vérification : l'interrompt puis quitte).
-
-**Pied d'écran** : date de la dernière synchro (toutes liaisons confondues) et nombre de liaisons
-en échec lors de celle-ci.
-
-### Flux « Tout synchroniser »
-
-La synchro se déroule **sur l'écran principal**, sans écran de progression dédié :
+Check finished:
 
 ```
-Synchronisation 2/4
+Samba Sync
 ─────────────────────────────────────────
-  Roms GBA    [Miroir]   12 copiés · 3 supprimés
-▸ Roms SNES              Chrono Trigger.sfc · 62% de 1,4 Go
-  Bios                   En attente
-  Saves                  Config : share manquant
+▸ Roms GBA    [Mirror]   [New]
+  Roms SNES              Up to date
+  Bios                   Error: Server unreachable
+  Saves                  Config: share missing
 
-B  Annuler
+  Last sync: 18/09 at 18:42 · 1 failed
+
+X  Check   Y  Details   A  Sync   B  Quit
 ```
 
-- Les liaisons valides sont traitées **en séquence**, dans l'ordre du fichier. Les liaisons en
-  erreur de config sont sautées. Les liaisons en erreur réseau lors de la vérification sont
-  retentées (le réseau a pu revenir).
-- Pour chaque liaison : connexion → listing distant → comparaison avec le local (refaite juste
-  avant la copie, pour que les suppressions Miroir reposent sur un état à jour) → copie fichier
-  par fichier → **en mode Miroir**, suppressions en dernier, seulement si toutes les copies ont
-  réussi.
-- La ligne de la liaison en cours affiche le fichier courant et la **progression en volume**
-  (pourcentage du poids total à copier, et ce poids). Le nombre de fichiers ne dit pas grand-chose
-  du temps restant quand leurs tailles varient ; le volume, si. Pendant la phase de suppression du
-  mode Miroir, la ligne affiche `Suppression n/N`.
-- À la fin d'une liaison, sa ligne affiche son résultat : `N copiés · M supprimés`, `À jour`,
-  `Partiel · N copiés · K erreurs` si certains fichiers ont échoué, ou `Erreur : <raison>`.
-- **Un échec n'interrompt pas la file** : l'erreur est enregistrée et la liaison suivante démarre.
-- **B** : annule la liaison en cours et toutes les suivantes. Ce qui a été copié reste en place ;
-  les suppressions Miroir déjà faites ne sont pas annulées, les restantes ne sont pas exécutées. La
-  liaison en cours et les suivantes sont marquées `Annulé`.
-- Fin de la file : le titre affiche « Synchronisation terminée », l'état persistant de chaque
-  liaison est mis à jour, et les touches normales de l'écran reviennent (A relance, X revérifie,
-  Y détail).
+**Possible statuses of a link** (right-hand column):
+- `Waiting` — not checked yet.
+- `Checking…` — connecting and comparing.
+- `[New]` — there is something to sync (files to copy and/or, in mirror mode, to delete). **No
+  numbers here**: the detail (how many, what volume, how many deletions) is on screen 2, so the
+  list stays readable at a glance.
+- `Up to date` — nothing to copy or delete.
+- `Error: <short reason>` — the check failed (network, authentication, share or folder not found).
+  An invalid config shows its reason directly (`Config: …`).
+- `Not checked` — checking was interrupted before reaching this link.
+- If this link's **last sync** failed (persisted state), a `!` marker is added before its name, even
+  when the current check succeeds — the detail is on screen 2.
 
-### 2. Écran Détail d'une liaison
+**Buttons**:
+- **A**: Sync everything (see flow below). Inactive until the check has finished, and when no valid
+  link exists.
+- **X**: re-reads `Samba Sync.toml` (so edits made while the pak is running are picked up) then
+  checks every link again.
+- **Y**: opens the selected link's detail → screen 2.
+- **B**: quits the pak (during a check: interrupts it, then quits).
 
-Accessible via **Y** depuis l'écran principal, en dehors d'une synchro en cours.
+**Footer**: date of the last sync (across all links) and how many links failed it.
+
+### "Sync everything" flow
+
+The sync runs **on the main screen**, with no dedicated progress screen:
+
+```
+Syncing 2/4
+─────────────────────────────────────────
+  Roms GBA    [Mirror]   12 copied · 3 deleted
+▸ Roms SNES              Chrono Trigger.sfc · 62% of 1.4 GB
+  Bios                   Waiting
+  Saves                  Config: share missing
+
+B  Cancel
+```
+
+- Valid links are processed **in sequence**, in file order. Links with a config error are skipped.
+  Links that failed their check with a network error are retried (the network may be back).
+- For each link: connect → remote listing → comparison with the local side (redone right before
+  copying, so mirror deletions rest on an up-to-date diff) → copy file by file → **in mirror mode**,
+  deletions last, only if every copy succeeded.
+- The active link's line shows the current file and the **progress by volume** (percentage of the
+  total to copy, and that total). The number of files says little about the time left when file
+  sizes vary; the volume does. During mirror mode's deletion phase the line shows `Deleting n/N`.
+- When a link finishes, its line shows its result: `N copied · M deleted`, `Up to date`,
+  `Partial · N copied · K errors` if some files failed, or `Error: <reason>`.
+- **A failure does not interrupt the queue**: the error is recorded and the next link starts.
+- **B**: cancels the current link and every remaining one. What was already copied stays in place;
+  mirror deletions already done are not undone, the remaining ones are not performed. The current
+  link and the following ones are marked `Cancelled`.
+- End of the queue: the title shows "Sync finished", each link's persisted state is updated, and the
+  screen's normal buttons return (A syncs again, X re-checks, Y details).
+
+### 2. Link detail screen
+
+Reached with **Y** from the main screen, outside a running sync.
 
 ```
 Roms GBA
 ─────────────────────────────────────────
-Serveur           NAS Salon (192.168.1.10)
-Distant           Roms/GBA
-Local             Roms/Game Boy Advance (GBA)
-Mode              Miroir
+Server      Living Room NAS (192.168.1.10)
+Remote      Roms/GBA
+Local       Roms/Game Boy Advance (GBA)
+Mode        Mirror
 
-Vérification      12 nouveaux (340 Mo) · 3 à supprimer
+Check       12 new (340 MB) · 3 to delete
 
-Dernière synchro  18/09/2026 à 18:42 · partielle
-                  84 copiés (1,2 Go) · 5 supprimés
-                  2 erreurs :
-                    Pokemon Ruby (USA).gba — Espace disque insuffisant
-                    Zelda Minish Cap (EU).gba — Écriture refusée
+Last sync   18/09/2026 at 18:42 · partial
+            84 copied (1.2 GB) · 5 deleted
+            2 errors:
+              Pokemon Ruby (USA).gba — Not enough disk space
+              Zelda Minish Cap (EU).gba — Write denied
 
-B  Retour
+B  Back
 ```
 
-Chaque ligne est posée sur une pastille noire, comme les lignes de l'écran 1 : la couleur de fond
-étant un réglage de thème NextUI, du texte posé directement dessus n'aurait pas de contraste
-garanti.
+Each line sits on a black pill, like the lines of screen 1: the background colour is a NextUI theme
+setting, so text placed directly on it would have no guaranteed contrast.
 
-- **Configuration** : rappel en lecture seule de ce que dit le fichier.
-- **Vérification** : résultat de la vérification courante (à copier, volume, à supprimer), ou
-  l'erreur rencontrée, ou l'erreur de config. Après une synchro, la vérification est périmée :
-  la ligne affiche « à revérifier (touche X) » plutôt qu'un chiffre faux.
-- **Dernière synchro** : date, statut (réussie / partielle / échouée / annulée / jamais), compteurs
-  copiés / supprimés, et la liste des erreurs (erreur globale de la liaison, ou erreurs fichier par
-  fichier). L'écran défile (haut/bas) ; la liste est limitée aux 50 premières erreurs, le nombre
-  total restant affiché.
-- **B** : retour à l'écran principal.
+A value too long for one line **wraps onto several lines** rather than being cut off, its
+continuation aligned under the value column — paths and error messages are routinely long.
 
----
-
-## Cas d'erreur couverts
-
-Chacun apparaît en raison courte sur l'écran principal, et en clair sur l'écran Détail.
-
-| Cas                                  | Portée              |
-|--------------------------------------|---------------------|
-| Config invalide (voir tolérance)     | Liaison             |
-| Hôte injoignable / timeout           | Liaison             |
-| Authentification refusée             | Liaison             |
-| Partage ou dossier distant introuvable | Liaison           |
-| Dossier local impossible à créer     | Liaison             |
-| Espace disque insuffisant            | Fichier (la liaison continue) |
-| Connexion perdue en cours de copie   | Liaison (fichiers restants abandonnés) |
-| Échec d'écriture/suppression locale  | Fichier             |
-| Plus de 4096 fichiers d'un côté      | Liaison (pas de listing tronqué, qui fausserait le Miroir) |
-
-Un fichier partiellement téléchargé est supprimé en cas d'échec ou d'annulation (jamais de fichier
-tronqué laissé sur la SD).
+- **Configuration**: read-only recap of what the file says.
+- **Check**: result of the current check (to copy, volume, to delete), or the error encountered, or
+  the config error. After a sync the check is stale: the line shows "stale, press X to re-check"
+  rather than a wrong number.
+- **Last sync**: date, status (succeeded / partial / failed / cancelled / never), copied and deleted
+  counters, and the list of errors (link-wide error, or per-file errors). The screen scrolls
+  (up/down); the list is limited to the first 50 errors, with the total still shown.
+- **B**: back to the main screen.
 
 ---
 
-## Features (résumé)
+## Error cases covered
 
-- Config 100 % hors-ligne dans `Samba Sync.toml` (TOML, parseur tomlc17 vendoré) : serveurs,
-  liaisons, réglages.
-- Écran principal listant les liaisons avec vérification progressive à l'ouverture (nouveaux
-  fichiers, suppressions prévues, erreurs).
-- « Tout synchroniser » en une touche, exécuté en séquence, avec progression affichée dans la liste.
-- Un échec n'arrête pas les autres liaisons ; il est persisté et signalé.
-- Écran Détail par liaison : config, vérification, résultat de la dernière synchro, liste des
-  erreurs.
-- Modes Ajout / Miroir par liaison.
+Each appears as a short reason on the main screen, and in full on the detail screen.
 
-## Hors périmètre v2
+| Case                                    | Scope                                              |
+|-----------------------------------------|----------------------------------------------------|
+| Invalid config (see tolerance)          | Link                                               |
+| Host unreachable / timeout              | Link                                               |
+| Authentication refused                  | Link                                               |
+| Share or remote folder not found        | Link                                               |
+| Local folder cannot be created          | Link                                               |
+| Not enough disk space                   | File (the link continues)                          |
+| Connection lost while copying           | Link (remaining files abandoned)                   |
+| Local write/delete failure              | File                                               |
+| More than 4096 files on either side     | Link (no truncated listing, which would break Mirror) |
 
-- Création/édition des liaisons ou serveurs depuis la console.
-- Synchro d'une seule liaison depuis l'UI.
-- Push SD → Samba, sync bidirectionnelle.
-- Filtres par extension/motif.
-- Synchro planifiée / au démarrage / en arrière-plan.
-- Comparaison par date de modification ou checksum.
-- Reprise d'un fichier interrompu.
+A partially downloaded file is removed on failure or cancellation (never a truncated file left on
+the SD card).
 
-## Plateformes ciblées
+---
+
+## Features (summary)
+
+- 100% offline config in `Samba Sync.toml` (TOML, vendored tomlc17 parser): servers, links,
+  settings.
+- Main screen listing the links with a progressive check on open (something new, errors).
+- "Sync everything" in one press, run in sequence, with progress shown in the list.
+- A failure doesn't stop the other links; it is persisted and flagged.
+- Detail screen per link: config, check, last sync result, list of errors.
+- Add / Mirror mode per link.
+
+## Out of scope for v2
+
+- Creating or editing links or servers from the console.
+- Syncing a single link from the UI.
+- Push SD → Samba, two-way sync.
+- Extension/pattern filters.
+- Scheduled / at-boot / background sync.
+- Comparison by modification date or checksum.
+- Resuming an interrupted file.
+
+## Target platforms
 
 `tg5040`, `tg5050` (TrimUI Brick / Smart Pro).
 
-## Questions ouvertes
+## Open questions
 
-- Emplacement du fichier : racine de la SD (`Samba Sync.toml`) ou à côté du pak
-  (`Tools/<plateforme>/Samba Sync.pak/config.toml`) ?
-- Faut-il une synchro d'une seule liaison depuis l'écran Détail (A) ? Exclue pour l'instant.
-- Affectation des touches : implémentée en A = Tout synchroniser / Y = Détail. La convention NextUI
-  (A ouvre l'élément sélectionné) voudrait l'inverse — à trancher à l'usage sur la console.
-- La vérification d'une liaison est bloquante (connexion + listing récursif) : l'UI se redessine
-  entre deux liaisons mais reste figée pendant chacune, et B n'interrompt qu'entre deux liaisons.
-  À réévaluer sur un vrai partage volumineux ; un thread dédié serait la solution.
+- File location: SD card root (`Samba Sync.toml`) or next to the pak
+  (`Tools/<platform>/Samba Sync.pak/config.toml`)?
+- Should a single link be syncable from the detail screen (A)? Excluded for now.
+- Button mapping: implemented as A = Sync everything / Y = Details. The NextUI convention (A opens
+  the selected item) would suggest the opposite — to be settled through use on the console.
+- Checking a link is blocking (connect + recursive listing): the UI redraws between links but
+  freezes during each one, and B only takes effect between two links. To be re-evaluated on a large
+  real share; a dedicated thread would be the fix.

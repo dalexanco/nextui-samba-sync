@@ -3,14 +3,14 @@
 
 #include "api.h"
 
-// Écran 1 (SPEC.md): the list of links with their check/sync status, "Tout
-// synchroniser", "Revérifier" and access to each link's detail. Drives
+// Screen 1 (SPEC.md): the list of links with their check/sync status, "sync
+// everything", "check again" and access to each link's detail. Drives
 // sync_queue.c every frame while a check or sync is running.
 
 typedef enum {
 	LINKS_LIST_ACTION_NONE,
 	LINKS_LIST_ACTION_QUIT,
-	LINKS_LIST_ACTION_DETAIL, // open écran 2 for LinksList_selected()
+	LINKS_LIST_ACTION_DETAIL, // open screen 2 for LinksList_selected()
 } LinksListAction;
 
 LinksListAction LinksList_input(int *dirty);

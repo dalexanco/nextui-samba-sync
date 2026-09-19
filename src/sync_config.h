@@ -24,7 +24,7 @@ typedef struct {
 	char username[CONFIG_STR_MAX];
 	char password[CONFIG_STR_MAX];
 	char domain[CONFIG_STR_MAX];
-	char error[CONFIG_ERROR_MAX]; // "" if valid, else why (in French, shown to the user)
+	char error[CONFIG_ERROR_MAX]; // "" if valid, else why (shown to the user)
 } Server;
 
 typedef enum {
@@ -40,9 +40,8 @@ typedef struct {
 	char remote[CONFIG_STR_MAX]; // share-relative, "" = share root
 	char local[CONFIG_STR_MAX];  // SDCARD_PATH-relative
 	LinkMode mode;
-	// "" if the link can be checked/synced; otherwise a short reason in
-	// French ("Config : serveur « NAS » introuvable") shown in place of its
-	// status. A link with a config error is never checked nor synced.
+	// "" if the link can be checked/synced; otherwise a short reason
+	// ("Config: server “NAS” not found") shown in place of its status. A link with a config error is never checked nor synced.
 	char config_error[CONFIG_ERROR_MAX];
 } Link;
 
@@ -61,7 +60,7 @@ void sync_config_load(void);
 ConfigStatus sync_config_status(void);
 
 // For CONFIG_PARSE_ERROR: the parser's message, prefixed with the file name
-// and line ("Samba Sync.toml, ligne 12 : ..."). "" otherwise.
+// and line ("Samba Sync.toml, line 12: ..."). "" otherwise.
 const char *sync_config_error_message(void);
 
 int sync_config_timeout(void); // [settings] timeout, seconds, default 10

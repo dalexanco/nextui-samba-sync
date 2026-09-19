@@ -28,15 +28,15 @@ const char *smb_error_label(SmbError error)
 {
 	switch (error) {
 	case SMB_OK: return "";
-	case SMB_ERR_UNREACHABLE: return "Serveur injoignable";
-	case SMB_ERR_AUTH: return "Authentification refusée";
-	case SMB_ERR_SHARE_NOT_FOUND: return "Partage introuvable";
-	case SMB_ERR_PATH_NOT_FOUND: return "Dossier distant introuvable";
-	case SMB_ERR_ACCESS_DENIED: return "Accès refusé";
-	case SMB_ERR_TOO_MANY_FILES: return "Trop de fichiers dans le dossier distant";
+	case SMB_ERR_UNREACHABLE: return "Server unreachable";
+	case SMB_ERR_AUTH: return "Authentication refused";
+	case SMB_ERR_SHARE_NOT_FOUND: return "Share not found";
+	case SMB_ERR_PATH_NOT_FOUND: return "Remote folder not found";
+	case SMB_ERR_ACCESS_DENIED: return "Access denied";
+	case SMB_ERR_TOO_MANY_FILES: return "Too many files in the remote folder";
 	case SMB_ERR_FAILED: break;
 	}
-	return "Erreur SMB";
+	return "SMB error";
 }
 
 // Maps the NT status of the last failed libsmb2 call. A failure with no NT

@@ -25,7 +25,7 @@ typedef enum {
 
 typedef struct {
 	char path[BROWSE_STR_MAX]; // link-relative file path, "" for a link-wide error
-	char reason[LINK_ERROR_REASON_MAX]; // short French reason, shown as-is
+	char reason[LINK_ERROR_REASON_MAX]; // short reason, shown as-is
 } LinkError;
 
 typedef struct {

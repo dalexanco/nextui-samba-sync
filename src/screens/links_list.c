@@ -40,7 +40,7 @@ LinksListAction LinksList_input(int *dirty)
 		*dirty = 1;
 	}
 	else if (mode != QUEUE_SYNCING && count > 0 && PAD_justPressed(BTN_Y)) {
-		// A check in progress just pauses while écran 2 is open: only this
+		// A check in progress just pauses while screen 2 is open: only this
 		// screen ticks the queue.
 		return LINKS_LIST_ACTION_DETAIL;
 	}
@@ -67,7 +67,7 @@ static void plural(char *out, size_t out_size, int n, const char *singular, cons
 	snprintf(out, out_size, "%d %s", n, n > 1 ? plural_form : singular);
 }
 
-// Right-hand status of a link, per the phases described in SPEC.md écran 1.
+// Right-hand status of a link, per the phases described in SPEC.md screen 1.
 static void statusText(int index, char *out, size_t out_size)
 {
 	const Link *link = sync_config_link_get(index);
@@ -79,29 +79,29 @@ static void statusText(int index, char *out, size_t out_size)
 	char a[64], b[64];
 	switch (sync_queue_phase(index)) {
 	case LINK_PHASE_IDLE:
-		snprintf(out, out_size, "Non vérifiée");
+		snprintf(out, out_size, "Not checked");
 		return;
 	case LINK_PHASE_CHECK_PENDING:
 	case LINK_PHASE_SYNC_PENDING:
-		snprintf(out, out_size, "En attente");
+		snprintf(out, out_size, "Waiting");
 		return;
 	case LINK_PHASE_CHECKING:
-		snprintf(out, out_size, "Vérification…");
+		snprintf(out, out_size, "Checking…");
 		return;
 	case LINK_PHASE_CHECKED: {
-		// Just "il y a quelque chose à faire" here; the counts (and what
-		// mirror mode would delete) are on écran 2.
+		// Just "there is something to do" here; the counts (and what mirror
+		// mode would delete) are on screen 2.
 		const LinkCheck *check = sync_queue_check(index);
-		if (!check->ok) snprintf(out, out_size, "Erreur : %s", check->message);
-		else if (check->to_copy_count == 0 && check->to_delete_count == 0) snprintf(out, out_size, "À jour");
-		else snprintf(out, out_size, "[Nouveau]");
+		if (!check->ok) snprintf(out, out_size, "Error: %s", check->message);
+		else if (check->to_copy_count == 0 && check->to_delete_count == 0) snprintf(out, out_size, "Up to date");
+		else snprintf(out, out_size, "[New]");
 		return;
 	}
 	case LINK_PHASE_SYNCING: {
 		SyncState state = sync_engine_state();
 		SyncProgress p = sync_engine_progress();
 		if (state == SYNC_STATE_DELETING) {
-			snprintf(out, out_size, "Suppression %d/%d", p.files_deleted, p.to_delete_count);
+			snprintf(out, out_size, "Deleting %d/%d", p.files_deleted, p.to_delete_count);
 		}
 		else if (state == SYNC_STATE_COPYING && p.current_file[0]) {
 			// Progress by volume, not by file count: files vary wildly in
@@ -112,30 +112,30 @@ static void statusText(int index, char *out, size_t out_size)
 			name = name ? name + 1 : p.current_file;
 			char total[32];
 			UI_formatBytes(p.to_copy_bytes, total, sizeof(total));
-			snprintf(out, out_size, "%s · %d%% de %s", name, percent, total);
+			snprintf(out, out_size, "%s · %d%% of %s", name, percent, total);
 		}
 		else {
-			snprintf(out, out_size, "Connexion…");
+			snprintf(out, out_size, "Connecting…");
 		}
 		return;
 	}
 	case LINK_PHASE_SYNCED: {
 		const LinkState *last = sync_queue_last(index);
-		plural(a, sizeof(a), last->files_copied, "copié", "copiés");
-		plural(b, sizeof(b), last->files_deleted, "supprimé", "supprimés");
+		plural(a, sizeof(a), last->files_copied, "copied", "copied");
+		plural(b, sizeof(b), last->files_deleted, "deleted", "deleted");
 		if (last->status == LINK_STATUS_ERROR) {
-			snprintf(out, out_size, "Erreur : %s", last->error_count > 0 ? last->errors[0].reason : "échec");
+			snprintf(out, out_size, "Error: %s", last->error_count > 0 ? last->errors[0].reason : "failed");
 		}
 		else if (last->status == LINK_STATUS_CANCELLED) {
-			snprintf(out, out_size, "Annulé · %s", a);
+			snprintf(out, out_size, "Cancelled · %s", a);
 		}
 		else if (last->status == LINK_STATUS_PARTIAL) {
 			char c[64];
-			plural(c, sizeof(c), last->error_total, "erreur", "erreurs");
-			snprintf(out, out_size, "Partiel · %s · %s", a, c);
+			plural(c, sizeof(c), last->error_total, "error", "errors");
+			snprintf(out, out_size, "Partial · %s · %s", a, c);
 		}
 		else if (last->files_copied == 0 && last->files_deleted == 0) {
-			snprintf(out, out_size, "À jour");
+			snprintf(out, out_size, "Up to date");
 		}
 		else if (last->files_deleted > 0) {
 			snprintf(out, out_size, "%s · %s", a, b);
@@ -146,7 +146,7 @@ static void statusText(int index, char *out, size_t out_size)
 		return;
 	}
 	case LINK_PHASE_SYNC_CANCELLED:
-		snprintf(out, out_size, "Annulé");
+		snprintf(out, out_size, "Cancelled");
 		return;
 	}
 }
@@ -172,7 +172,7 @@ static void renderRow(SDL_Surface *screen, int index, bool is_selected, int y)
 	snprintf(label, sizeof(label), "%s%s%s",
 	         link_state_failed(sync_queue_last(index)) ? "! " : "",
 	         link->name,
-	         link->mode == LINK_MODE_MIRROR ? " [Miroir]" : "");
+	         link->mode == LINK_MODE_MIRROR ? " [Mirror]" : "");
 	char label_fit[sizeof(label)];
 	UI_fitText(font.medium, label, label_fit, sizeof(label_fit), w - inner * 3 - status_w);
 
@@ -180,7 +180,7 @@ static void renderRow(SDL_Surface *screen, int index, bool is_selected, int y)
 	UI_renderText(screen, status_fit, font.small, color, x + w - inner - status_w, y + SCALE1(6));
 }
 
-// "Dernière synchro : 18/09 à 18:42 · 1 échec" -- most recent end time among
+// "Last sync: 18/09 at 18:42 · 1 failed" -- most recent end time among
 // every link's persisted state, and how many links failed their last sync.
 static void footerText(char *out, size_t out_size)
 {
@@ -192,15 +192,15 @@ static void footerText(char *out, size_t out_size)
 		if (link_state_failed(last)) failures++;
 	}
 	if (last_time == 0) {
-		snprintf(out, out_size, "Jamais synchronisé");
+		snprintf(out, out_size, "Never synced");
 		return;
 	}
 
 	time_t t = last_time;
 	char when[32];
-	strftime(when, sizeof(when), "%d/%m à %H:%M", localtime(&t));
-	if (failures > 0) snprintf(out, out_size, "Dernière synchro : %s · %d échec%s", when, failures, failures > 1 ? "s" : "");
-	else snprintf(out, out_size, "Dernière synchro : %s", when);
+	strftime(when, sizeof(when), "%d/%m at %H:%M", localtime(&t));
+	if (failures > 0) snprintf(out, out_size, "Last sync: %s · %d failed", when, failures);
+	else snprintf(out, out_size, "Last sync: %s", when);
 }
 
 static void renderEmpty(SDL_Surface *screen, int y)
@@ -209,16 +209,16 @@ static void renderEmpty(SDL_Surface *screen, int y)
 	const char *line2 = NULL;
 	switch (sync_config_status()) {
 	case CONFIG_MISSING:
-		line1 = "Aucune configuration";
-		line2 = "Créez « " CONFIG_FILE_NAME " » à la racine de la carte SD";
+		line1 = "No configuration";
+		line2 = "Create “" CONFIG_FILE_NAME "” at the root of the SD card";
 		break;
 	case CONFIG_PARSE_ERROR:
-		line1 = "Configuration illisible";
+		line1 = "Configuration unreadable";
 		line2 = sync_config_error_message();
 		break;
 	case CONFIG_OK:
-		line1 = "Aucune liaison";
-		line2 = "Ajoutez une table [links.\"…\"] dans « " CONFIG_FILE_NAME " »";
+		line1 = "No links";
+		line2 = "Add a [links.\"…\"] table to “" CONFIG_FILE_NAME "”";
 		break;
 	}
 
@@ -236,9 +236,9 @@ void LinksList_render(SDL_Surface *screen, int show_setting)
 	QueueMode mode = sync_queue_mode();
 	char title[64];
 	if (mode == QUEUE_SYNCING)
-		snprintf(title, sizeof(title), "Synchronisation %d/%d", sync_queue_sync_position(), sync_queue_sync_total());
+		snprintf(title, sizeof(title), "Syncing %d/%d", sync_queue_sync_position(), sync_queue_sync_total());
 	else if (sync_queue_sync_finished())
-		snprintf(title, sizeof(title), "Synchronisation terminée");
+		snprintf(title, sizeof(title), "Sync finished");
 	else
 		snprintf(title, sizeof(title), "Samba Sync");
 	UI_renderTitle(screen, title, show_setting);
@@ -281,15 +281,15 @@ void LinksList_render(SDL_Surface *screen, int show_setting)
 	}
 
 	if (mode == QUEUE_SYNCING) {
-		GFX_blitButtonGroup((char *[]){ "B", "ANNULER", NULL }, 0, screen, 1);
+		GFX_blitButtonGroup((char *[]){ "B", "CANCEL", NULL }, 0, screen, 1);
 	}
 	else {
-		if (count > 0 && mode == QUEUE_IDLE) GFX_blitButtonGroup((char *[]){ "X", "VÉRIF.", "Y", "DÉTAIL", NULL }, 0, screen, 0);
-		else if (count > 0) GFX_blitButtonGroup((char *[]){ "Y", "DÉTAIL", NULL }, 0, screen, 0);
-		else GFX_blitButtonGroup((char *[]){ "X", "RECHARGER", NULL }, 0, screen, 0);
+		if (count > 0 && mode == QUEUE_IDLE) GFX_blitButtonGroup((char *[]){ "X", "CHECK", "Y", "DETAILS", NULL }, 0, screen, 0);
+		else if (count > 0) GFX_blitButtonGroup((char *[]){ "Y", "DETAILS", NULL }, 0, screen, 0);
+		else GFX_blitButtonGroup((char *[]){ "X", "RELOAD", NULL }, 0, screen, 0);
 
-		if (sync_queue_can_sync()) GFX_blitButtonGroup((char *[]){ "A", "SYNCHRO", "B", "QUITTER", NULL }, 1, screen, 1);
-		else GFX_blitButtonGroup((char *[]){ "B", "QUITTER", NULL }, 1, screen, 1);
+		if (sync_queue_can_sync()) GFX_blitButtonGroup((char *[]){ "A", "SYNC", "B", "QUIT", NULL }, 1, screen, 1);
+		else GFX_blitButtonGroup((char *[]){ "B", "QUIT", NULL }, 1, screen, 1);
 	}
 	if (show_setting) GFX_blitHardwareHints(screen, show_setting);
 }

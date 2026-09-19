@@ -24,9 +24,15 @@ void UI_renderTitle(SDL_Surface *screen, const char *name, int show_setting);
 // Returns the rendered width.
 int UI_fitText(TTF_Font *font, const char *text, char *out, size_t out_size, int max_width);
 
+// Splits text into at most max_lines chunks, each rendering no wider than
+// max_width, breaking on spaces (and inside a word when a single word is too
+// long). Each out[i] holds line_size bytes. Returns the number of lines
+// written, at least 1.
+int UI_wrapText(TTF_Font *font, const char *text, char *out, size_t line_size, int max_lines, int max_width);
+
 // Formats a byte count as a human-readable string ("340 Mo", "12 Ko",
 // "3 o") -- factored out of screens/preview.c once screens/progress.c
-// needed the exact same code for écran 4.
+// needed the exact same code.
 void UI_formatBytes(long long bytes, char *out, size_t out_size);
 
 #endif

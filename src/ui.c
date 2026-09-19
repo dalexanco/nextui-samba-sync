@@ -46,6 +46,54 @@ int UI_fitText(TTF_Font *font, const char *text, char *out, size_t out_size, int
 	return UI_textWidth(out, font);
 }
 
+int UI_wrapText(TTF_Font *font, const char *text, char *out, size_t line_size, int max_lines, int max_width)
+{
+	int count = 0;
+	const char *p = text;
+	while (*p && count < max_lines) {
+		char *line = out + (size_t)count * line_size;
+		size_t taken = 0;      // bytes of *p committed to this line
+		size_t last_space = 0; // bytes up to the last space that still fitted
+
+		while (p[taken]) {
+			// Extend by one UTF-8 character and re-measure.
+			size_t next = taken + 1;
+			while ((p[next] & 0xC0) == 0x80) next++;
+			if (next >= line_size) break;
+
+			memcpy(line, p, next);
+			line[next] = '\0';
+			if (UI_textWidth(line, font) > max_width) break;
+
+			taken = next;
+			if (p[taken] == ' ') last_space = taken;
+		}
+
+		if (p[taken]) {
+			// Didn't reach the end: prefer breaking at the last space, unless
+			// this line is a single over-long word.
+			if (last_space > 0) taken = last_space;
+			if (taken == 0) {
+				taken = 1;
+				while ((p[taken] & 0xC0) == 0x80) taken++;
+			}
+		}
+
+		memcpy(line, p, taken);
+		line[taken] = '\0';
+		count++;
+
+		p += taken;
+		while (*p == ' ') p++;
+	}
+
+	if (count == 0) {
+		out[0] = '\0';
+		count = 1;
+	}
+	return count;
+}
+
 void UI_renderTitle(SDL_Surface *screen, const char *name, int show_setting)
 {
 	int max_width = screen->w - SCALE1(PADDING * 2);
