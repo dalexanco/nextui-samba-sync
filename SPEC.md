@@ -47,8 +47,9 @@ locale). La v2 sépare strictement les deux rôles :
 ## Configuration (fichier)
 
 Un fichier unique à la racine de la SD, `Samba Sync.toml`, édité pendant que la carte est montée
-sur un ordinateur (ou via SSH). Format : [TOML v1.0](https://toml.io/fr/v1.0.0), lu par
-[tomlc99](https://github.com/cktan/tomlc99) (un `.c` + un `.h`, MIT, vendoré dans le dépôt).
+sur un ordinateur (ou via SSH). Format : [TOML](https://toml.io/fr/), lu par
+[tomlc17](https://github.com/cktan/tomlc17) (un `.c` + un `.h`, MIT, vendoré dans le dépôt ;
+tomlc99, son prédécesseur, est déclaré obsolète par son auteur).
 
 **Convention** : toutes les clés, noms de tables et valeurs énumérées sont en **anglais**. Seuls
 les noms libres choisis par l'utilisateur (nom de serveur, nom de liaison, chemins) et les textes
@@ -99,9 +100,9 @@ d'exécution.
   « Miroir »).
 
 **Ordre des liaisons** : la norme TOML ne garantit pas l'ordre des clés d'une table. Le pak
-s'appuie sur tomlc99, qui les restitue dans l'ordre du fichier. C'est un comportement propre à la
-bibliothèque, pas à la norme : un outil externe qui reformate ou trie le fichier peut changer
-l'ordre d'affichage. À préciser dans le README.
+s'appuie sur tomlc17, qui les restitue dans l'ordre du fichier (vérifié). C'est un comportement
+propre à la bibliothèque, pas à la norme : un outil externe qui reformate ou trie le fichier peut
+changer l'ordre d'affichage. À préciser dans le README.
 
 **Tolérance aux erreurs** :
 - Fichier absent → l'écran principal affiche un état vide expliquant où créer
@@ -122,9 +123,15 @@ l'ordre d'affichage. À préciser dans le README.
 
 **Sécurité** : les mots de passe sont en clair dans le fichier. À signaler dans le README.
 
-**État persistant** : le résultat de la dernière synchro de chaque liaison (date, compteurs,
-erreurs) est enregistré par le pak dans `$SHARED_USERDATA_PATH`, indexé par nom de liaison.
-Renommer une liaison dans le fichier fait perdre son historique.
+**État persistant** : le résultat de la dernière synchro de chaque liaison (date, statut,
+compteurs, et les 50 premières erreurs avec leur nombre total) est enregistré par le pak dans
+`$SHARED_USERDATA_PATH/samba-sync/state/<nom>.txt`, indexé par nom de liaison. Renommer une liaison
+dans le fichier fait perdre son historique.
+
+**Pas de symboles** : les libellés d'état n'utilisent ni ✔/✘ ni émoji. Les deux polices livrées
+avec NextUI ne les contiennent pas toutes (`font2.ttf` n'a ni ✔ ni ✘, aucune n'a ⟳/🗑/⚠) et un
+glyphe manquant s'affiche en carré vide. Seuls `·`, `—`, `…`, les guillemets français et les
+lettres accentuées sont utilisés.
 
 ---
 
@@ -142,11 +149,11 @@ Pendant la vérification :
 ```
 Samba Sync
 ─────────────────────────────────────────
-▸ Roms GBA    [Miroir]   ✔ 12 nouveaux · 🗑 3
-  Roms SNES              ⟳ Vérification…
-  Bios                   · en attente
+▸ Roms GBA    [Miroir]   12 nouveaux · 3 à supprimer
+  Roms SNES              Vérification…
+  Bios                   En attente
 
-X  Revérifier   Y  Détail   B  Quitter
+X  Vérif.   Y  Détail   B  Quitter
 ```
 
 Vérification terminée :
@@ -154,31 +161,33 @@ Vérification terminée :
 ```
 Samba Sync
 ─────────────────────────────────────────
-▸ Roms GBA    [Miroir]   12 nouveaux · 🗑 3
+▸ Roms GBA    [Miroir]   12 nouveaux · 3 à supprimer
   Roms SNES              À jour
-  Bios                   ✘ Serveur injoignable
-  Saves                  ✘ Config : share manquant
+  Bios                   Erreur : Serveur injoignable
+  Saves                  Config : share manquant
 
-  Dernière synchro : hier 18:42 · 1 échec
+  Dernière synchro : 18/09 à 18:42 · 1 échec
 
-A  Tout synchroniser   X  Revérifier   Y  Détail   B  Quitter
+X  Vérif.   Y  Détail   A  Synchro   B  Quitter
 ```
 
 **États possibles d'une liaison** (colonne de droite) :
-- `· en attente` — pas encore vérifiée.
-- `⟳ Vérification…` — connexion et comparaison en cours.
-- `N nouveaux` (+ `· 🗑 M` en mode Miroir si des suppressions sont prévues) — des changements sont
-  à appliquer.
+- `En attente` — pas encore vérifiée.
+- `Vérification…` — connexion et comparaison en cours.
+- `N nouveaux` (+ `· M à supprimer` en mode Miroir si des suppressions sont prévues) — des
+  changements sont à appliquer.
 - `À jour` — rien à copier ni à supprimer.
-- `✘ <raison courte>` — la vérification a échoué (réseau, authentification, partage ou dossier
-  introuvable) ou la config est invalide.
+- `Erreur : <raison courte>` — la vérification a échoué (réseau, authentification, partage ou
+  dossier introuvable). Une config invalide affiche directement sa raison (`Config : …`).
+- `Non vérifiée` — la vérification a été interrompue avant d'atteindre cette liaison.
 - Si la **dernière synchro** de cette liaison a échoué (état persistant), un marqueur `!` est
   ajouté devant le nom, même si la vérification courante réussit — le détail est dans l'écran 2.
 
 **Touches** :
 - **A** : Tout synchroniser (voir flux ci-dessous). Inactif tant que la vérification n'est pas
   terminée, et si aucune liaison valide n'existe.
-- **X** : relance la vérification de toutes les liaisons.
+- **X** : relit `Samba Sync.toml` (les modifications faites pendant que le pak tourne sont donc
+  prises en compte) puis relance la vérification de toutes les liaisons.
 - **Y** : ouvre le détail de la liaison sélectionnée → écran 2.
 - **B** : quitte le pak (pendant une vérification : l'interrompt puis quitte).
 
@@ -190,12 +199,12 @@ en échec lors de celle-ci.
 La synchro se déroule **sur l'écran principal**, sans écran de progression dédié :
 
 ```
-Samba Sync — Synchronisation 2/4
+Synchronisation 2/4
 ─────────────────────────────────────────
-  Roms GBA    [Miroir]   ✔ 12 copiés · 🗑 3
-▸ Roms SNES              ⟳ 5/8 · Chrono Trigger.sfc  62%
-  Bios                   · en attente
-  Saves                  ✘ Config : share manquant
+  Roms GBA    [Miroir]   12 copiés · 3 supprimés
+▸ Roms SNES              5/8 · Chrono Trigger.sfc · 62%
+  Bios                   En attente
+  Saves                  Config : share manquant
 
 B  Annuler
 ```
@@ -209,8 +218,8 @@ B  Annuler
   réussi.
 - La ligne de la liaison en cours affiche : fichiers traités / total, nom du fichier courant,
   pourcentage.
-- À la fin d'une liaison, sa ligne affiche son résultat : `✔ N copiés · 🗑 M` ou `✘ <raison>`
-  (ou `⚠ N copiés · K erreurs` si certains fichiers ont échoué).
+- À la fin d'une liaison, sa ligne affiche son résultat : `N copiés · M supprimés`, `À jour`,
+  `Partiel · N copiés · K erreurs` si certains fichiers ont échoué, ou `Erreur : <raison>`.
 - **Un échec n'interrompt pas la file** : l'erreur est enregistrée et la liaison suivante démarre.
 - **B** : annule la liaison en cours et toutes les suivantes. Ce qui a été copié reste en place ;
   les suppressions Miroir déjà faites ne sont pas annulées, les restantes ne sont pas exécutées. La
@@ -226,29 +235,34 @@ Accessible via **Y** depuis l'écran principal, en dehors d'une synchro en cours
 ```
 Roms GBA
 ─────────────────────────────────────────
-Serveur     NAS Salon (192.168.1.10)
-Distant     Roms/GBA
-Local       Roms/Game Boy Advance (GBA)
-Mode        Miroir
+Serveur           NAS Salon (192.168.1.10)
+Distant           Roms/GBA
+Local             Roms/Game Boy Advance (GBA)
+Mode              Miroir
 
-Vérification  12 nouveaux (340 Mo) · 3 à supprimer
+Vérification      12 nouveaux (340 Mo) · 3 à supprimer
 
-Dernière synchro  hier 18:42 · ⚠ partielle
-  ✔ 84 copiés (1,2 Go)
-  🗑 5 supprimés
-  ✘ 2 erreurs :
-    Pokemon Ruby (USA).gba — espace disque insuffisant
-    Zelda Minish Cap (EU).gba — connexion perdue
+Dernière synchro  18/09/2026 à 18:42 · partielle
+                  84 copiés (1,2 Go) · 5 supprimés
+                  2 erreurs :
+                    Pokemon Ruby (USA).gba — Espace disque insuffisant
+                    Zelda Minish Cap (EU).gba — Écriture refusée
 
 B  Retour
 ```
 
+Chaque ligne est posée sur une pastille noire, comme les lignes de l'écran 1 : la couleur de fond
+étant un réglage de thème NextUI, du texte posé directement dessus n'aurait pas de contraste
+garanti.
+
 - **Configuration** : rappel en lecture seule de ce que dit le fichier.
 - **Vérification** : résultat de la vérification courante (à copier, volume, à supprimer), ou
-  l'erreur rencontrée, ou l'erreur de config.
+  l'erreur rencontrée, ou l'erreur de config. Après une synchro, la vérification est périmée :
+  la ligne affiche « à revérifier (touche X) » plutôt qu'un chiffre faux.
 - **Dernière synchro** : date, statut (réussie / partielle / échouée / annulée / jamais), compteurs
   copiés / supprimés, et la liste des erreurs (erreur globale de la liaison, ou erreurs fichier par
-  fichier). Liste déroulante si elle dépasse l'écran ; limitée aux 50 premières erreurs.
+  fichier). L'écran défile (haut/bas) ; la liste est limitée aux 50 premières erreurs, le nombre
+  total restant affiché.
 - **B** : retour à l'écran principal.
 
 ---
@@ -267,6 +281,7 @@ Chacun apparaît en raison courte sur l'écran principal, et en clair sur l'écr
 | Espace disque insuffisant            | Fichier (la liaison continue) |
 | Connexion perdue en cours de copie   | Liaison (fichiers restants abandonnés) |
 | Échec d'écriture/suppression locale  | Fichier             |
+| Plus de 4096 fichiers d'un côté      | Liaison (pas de listing tronqué, qui fausserait le Miroir) |
 
 Un fichier partiellement téléchargé est supprimé en cas d'échec ou d'annulation (jamais de fichier
 tronqué laissé sur la SD).
@@ -275,7 +290,7 @@ tronqué laissé sur la SD).
 
 ## Features (résumé)
 
-- Config 100 % hors-ligne dans `Samba Sync.toml` (TOML, parseur tomlc99 vendoré) : serveurs,
+- Config 100 % hors-ligne dans `Samba Sync.toml` (TOML, parseur tomlc17 vendoré) : serveurs,
   liaisons, réglages.
 - Écran principal listant les liaisons avec vérification progressive à l'ouverture (nouveaux
   fichiers, suppressions prévues, erreurs).
@@ -303,9 +318,9 @@ tronqué laissé sur la SD).
 
 - Emplacement du fichier : racine de la SD (`Samba Sync.toml`) ou à côté du pak
   (`Tools/<plateforme>/Samba Sync.pak/config.toml`) ?
-- tomlc99 (TOML v1.0) ou son successeur tomlc17, du même auteur ? À vérifier au moment du
-  vendoring (état de maintenance, API, et conservation de l'ordre du fichier, dont dépend l'ordre
-  des liaisons).
 - Faut-il une synchro d'une seule liaison depuis l'écran Détail (A) ? Exclue pour l'instant.
-- Affectation des touches : A = Tout synchroniser / Y = Détail, ou l'inverse (convention NextUI :
-  A ouvre l'élément sélectionné) ?
+- Affectation des touches : implémentée en A = Tout synchroniser / Y = Détail. La convention NextUI
+  (A ouvre l'élément sélectionné) voudrait l'inverse — à trancher à l'usage sur la console.
+- La vérification d'une liaison est bloquante (connexion + listing récursif) : l'UI se redessine
+  entre deux liaisons mais reste figée pendant chacune, et B n'interrompt qu'entre deux liaisons.
+  À réévaluer sur un vrai partage volumineux ; un thread dédié serait la solution.

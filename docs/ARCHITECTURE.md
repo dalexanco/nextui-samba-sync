@@ -1,7 +1,7 @@
 # Architecture technique
 
 Ce document détaille l'implémentation technique du pak. Pour la description
-fonctionnelle (écrans, features), voir [SPEC.md](../SPEC.md). Pour une vue
+fonctionnelle (écrans, flux), voir [SPEC.md](../SPEC.md). Pour une vue
 d'ensemble rapide, voir [CLAUDE.md](../CLAUDE.md).
 
 ## Arborescence des sources
@@ -16,131 +16,153 @@ nextui-samba-sync/
     Makefile
     main.c
     screens/
-      home.c/.h, jobs_list.c/.h, servers_list.c/.h, job_wizard.c/.h,
-      folder_browser.c/.h, preview.c/.h, progress.c/.h, error.c/.h,
-      summary.c/.h, settings.c/.h
-    browse.c/.h
-    smb_client.c/.h
-    sync_engine.c/.h
-    servers.c/.h
-    jobs.c/.h
-    settings.c/.h
+      links_list.c/.h        (écran 1)
+      link_detail.c/.h       (écran 2)
+    sync_config.c/.h         (lecture de Samba Sync.toml)
+    link_state.c/.h          (dernière synchro persistée)
+    sync_queue.c/.h          (file de vérification / de synchro)
+    sync_engine.c/.h         (vérification et synchro d'une liaison)
+    smb_client.c/.h          (wrapper libsmb2)
+    local_fs.c/.h            (listing et création côté SD)
+    browse.c/.h              (BrowseFileEntry + helpers de chemin)
+    ui.c/.h                  (helpers de rendu partagés)
+    vendor/tomlc17/          (parseur TOML vendoré, voir VENDORED.md)
   lib/
-    libsmb2/   (vendored git submodule)
-  screenshots/
+    libsmb2/                 (submodule git)
+    build-libsmb2.sh
 ```
+
+Le module de config s'appelle `sync_config` et non `config` : `-I.` place `src/`
+avant `all/common/`, donc un `config.h` local masquerait celui de NextUI, inclus
+par `api.c`.
 
 ## Modèle de données et persistance
 
-### Serveurs (config, lecture seule côté pak)
+### Configuration (lecture seule côté pak)
 
-`Samba Servers/<nom>/server.txt`, un dossier par serveur, scanné par
-`servers.c` via `servers_rescan()`. Entrées malformées ignorées silencieusement
-(non fatal). Mot de passe gardé tel quel en mémoire.
+`SDCARD_PATH "/Samba Sync.toml"`, lu par `sync_config_load()`. Trois tables :
+`[settings]`, `[servers."<nom>"]`, `[links."<nom>"]` — clés et valeurs
+énumérées en anglais, format détaillé dans [SPEC.md](../SPEC.md).
 
-```
-name=NAS Salon
-host=192.168.1.10
-port=445
-share=Roms
-username=guest
-password=
-domain=
-```
+En mémoire : deux tableaux fixes (`MAX_SERVERS`, `MAX_LINKS`), pas d'allocation
+dynamique. Une liaison invalide est **conservée** avec son `config_error`
+rempli (message français affiché tel quel), pour que l'écran 1 puisse la
+montrer en erreur au lieu de la faire disparaître silencieusement. Un fichier
+absent ou du TOML mal formé donne zéro liaison et un `ConfigStatus` que l'écran
+1 traduit en état vide.
 
-### Jobs
+L'ordre d'affichage et d'exécution est l'ordre des tables dans le fichier :
+c'est ce que restitue `toml_datum_t.u.tab.key[]` de tomlc17, pas une garantie
+de la norme TOML (voir `src/vendor/tomlc17/VENDORED.md`).
 
-`$SHARED_USERDATA_PATH/samba-sync/jobs/<slug>.txt` :
+### État persistant
 
-```
-name=GBA
-server=NAS Salon
-remote_path=Roms/GBA
-local_path=Roms/Game Boy Advance (GBA)
-mirror=0
-last_sync_status=ok
-last_sync_time=1757793000
-```
-
-Le serveur est référencé par `name` et résolu dynamiquement à chaque usage.
-Si le serveur est absent (supprimé/renommé), le job passe en état d'erreur
-(badge + écran 5) mais n'est jamais supprimé automatiquement.
-
-### Réglages globaux
-
-`$SHARED_USERDATA_PATH/samba-sync/settings.txt` :
+`$SHARED_USERDATA_PATH/samba-sync/state/<slug>.txt`, un fichier `key=value` par
+liaison, écrit par `link_state.c` :
 
 ```
-overwrite_existing=0
-preview_before_sync=1
-network_timeout=10
+name=Roms GBA
+status=partial
+time=1758318000
+copied=84
+bytes=1288490188
+deleted=5
+errors=2
+error=Espace disque insuffisant	Pokemon Ruby (USA).gba
+error=Écriture refusée	Zelda Minish Cap (EU).gba
 ```
 
-Lecture/écriture en fopen/fscanf simple. On n'utilise pas
-`PLAT_OpenSettings`/`PLAT_WriteSettings` (réservés à l'état niveau OS, pas
-aux réglages d'un pak tiers) — comme dans gift-code.
+Le `name` est relu pour ignorer un fichier appartenant à une autre liaison dont
+le nom donnerait le même slug. Les lignes `error=` portent la raison puis le
+chemin, séparés par une tabulation (les raisons n'en contiennent jamais, les
+chemins peuvent contenir n'importe quoi d'autre) ; au plus 50 sont gardées,
+`errors=` donne le total réel.
 
 ## Machine à états des écrans
 
-Un `enum Screen` avec une valeur par écran du SPEC.md. Boucle de rendu
-"dirty"-gated (redraw seulement sur changement d'état). Chaque écran expose
-`init` / `update(dt)` / `render`. Pas d'OOP/vtable : un simple `switch` dans
-`main.c`, comme gift-code/Parental.pak.
+Deux écrans (`enum Screen` dans `main.c`), chacun exposant
+`input(&dirty)` / `render(screen, show_setting)` — un `switch`, pas de vtable.
+Boucle de rendu « dirty »-gated : seul `LinksList_input()` fait avancer la file,
+donc une vérification en cours se met naturellement en pause tant que l'écran 2
+est ouvert.
 
 ## Modules clés
 
-### `browse.c/.h`
+### `sync_engine.c/.h`
 
-Abstraction de navigation partagée entre l'écran 2b (distant) et l'écran 3
-(local), via une interface de backend :
+`sync_engine_check(link)` est **bloquant** : connexion, listing récursif
+distant, listing récursif local, puis diff. Les deux listes sont triées
+(`qsort` sur `rel_path`) et fusionnées en une passe — le v1 comparait chaque
+fichier distant à chaque fichier local, soit jusqu'à 16 millions de `strcmp`
+à 4096 fichiers par côté.
 
-```c
-typedef struct {
-    int (*list)(void* ctx, const char* path, BrowseEntry** out, int* count);
-    int (*is_dir)(const BrowseEntry* e);
-} BrowseBackend;
+`sync_engine_start(link)` refait le check (les suppressions Miroir doivent
+reposer sur un état à jour) puis `sync_engine_tick()` avance par tranches :
+
+```
+COPYING -> [DELETING] -> DONE
+        \-> CANCELLED
 ```
 
-Backend local via `opendir`/`readdir`/`stat` ; backend distant via
-`smb2_opendir`/`readdir` à travers `smb_client.c`.
+Chaque tick travaille pendant `TICK_BUDGET_MS` (30 ms) au lieu d'un seul bloc
+de 64 Ko : à 60 fps, un bloc par tick plafonnait le débit à ~3,8 Mo/s.
+
+Règles d'erreur :
+- une erreur **par fichier** (ouverture, écriture, espace disque, suppression)
+  est enregistrée et la liaison continue → statut `partial` ;
+- une erreur **de liaison** (connexion perdue, serveur injoignable) arrête la
+  liaison → statut `error` ;
+- chaque fichier est écrit dans un `.part` masqué (préfixé d'un point, donc
+  ignoré par `hide()` et par NextUI) renommé seulement une fois complet, et
+  supprimé en cas d'échec ou d'annulation : jamais de fichier tronqué sur la SD ;
+- en mode Miroir, les suppressions n'ont lieu que si **aucune** copie n'a
+  échoué ; les dossiers devenus vides sont retirés ensuite, sans jamais sortir
+  du dossier local de la liaison ;
+- un chemin local qui ne tiendrait pas dans `MAX_PATH` est une erreur de
+  fichier, pas un chemin tronqué qui désignerait un autre fichier.
+
+### `sync_queue.c/.h`
+
+Au-dessus de `sync_engine`, parcourt les liaisons valides en séquence, en mode
+vérification ou synchro. Un échec n'arrête jamais la file. Le passage d'une
+liaison à `CHECKING`/`SYNCING` consomme un tick à lui seul, pour que l'écran
+affiche « Vérification… » **avant** l'appel bloquant. Conserve par liaison la
+phase d'affichage, le dernier `LinkCheck` et le dernier `LinkState`.
 
 ### `smb_client.c/.h`
 
-Wrapper fin autour de libsmb2 :
-- `smb_connect(server) -> SmbSession*`
-- `smb_list(session, remote_path) -> entries[]`
-- `smb_open_read` / `smb_read_chunk` (lecture par blocs de 64KB)
-- `smb_disconnect`
-- Mapping d'erreurs vers `enum SmbError`
+Wrapper fin autour de libsmb2 : `smb_connect` (le partage vient de la liaison),
+`smb_list_files_recursive`, `smb_open_read`/`smb_read_chunk`/`smb_close_read`.
+Les erreurs sont typées à partir de `smb2_get_nterror()` (`LOGON_FAILURE` →
+auth, `BAD_NETWORK_NAME` → partage, `OBJECT_*_NOT_FOUND` → dossier, absence de
+statut NT → serveur injoignable) et `smb_error_label()` en donne le libellé
+français affiché.
 
-### `sync_engine.c/.h`
+Le listing distant applique la même règle `hide()` que le listing local :
+sans cela un `.DS_Store` distant apparaîtrait indéfiniment comme « nouveau ».
+Dépasser `BROWSE_MAX_FILES` est une erreur explicite : un listing tronqué
+ferait supprimer, en mode Miroir, des fichiers qui existent à distance.
 
-Machine à états incrémentale, avancée à chaque tick (pas de thread) :
+### `ui.c/.h`
 
-```
-CONNECTING -> LISTING_REMOTE -> LISTING_LOCAL -> DIFFING
-  -> [WAITING_CONFIRM] -> COPYING -> DELETING -> DONE
-```
+Helpers de rendu partagés. `UI_fitText()` tronque sur les frontières UTF-8,
+contrairement à `GFX_truncateText()` de NextUI qui retire 4 octets à la fois et
+peut couper une lettre accentuée en deux.
 
-`sync_engine_tick()` avance d'un pas par appel (une entrée de listing, un
-bloc de 64KB, une suppression). `sync_engine_cancel()` positionne un flag
-vérifié à chaque tick. La file multi-job est gérée par une couche au-dessus
-(`sync_queue.c` ou directement dans `home.c`). Détection "déjà présent" par
-nom + taille uniquement (pas de checksum en v1).
+Le texte est toujours posé sur une pastille (`ASSET_BLACK_PILL`) : la couleur
+de fond est un réglage de thème NextUI (`COLOR_BACKGROUND`), donc du texte posé
+directement sur le fond n'a pas de contraste garanti.
 
-### `servers.c/.h`, `jobs.c/.h`, `settings.c/.h`
-
-I/O key=value pur (fopen/fgets/sscanf), tableaux en mémoire de taille fixe
-(`MAX_SERVERS`, `MAX_JOBS`), pas d'allocation dynamique, pas de parseur
-générique — même niveau de simplicité que `config.c` dans gift-code.
+Contrainte de police : `font2.ttf` ne contient ni `✔` ni `✘`, et aucune des
+deux polices livrées n'a `⟳`, `🗑` ou `⚠`. Les états sont donc écrits en toutes
+lettres.
 
 ## Client SMB : pourquoi libsmb2
 
 [libsmb2](https://github.com/sahlberg/libsmb2) (sahlberg/libsmb2) :
 - LGPLv2.1
 - ~50KB compilé
-- Aucune dépendance hors libc (Kerberos optionnel, désactivé ici puisque
-  v1 ne gère que NTLM/guest)
+- Aucune dépendance hors libc (Kerberos désactivé explicitement, voir plus bas)
 - Utilisé en production par RetroArch et Kodi
 
 Alternative rejetée : `mount.cifs` / module CIFS noyau — le support CIFS du
@@ -148,81 +170,66 @@ noyau Buildroot du TrimUI n'est pas vérifié, trop risqué comme base.
 
 Vendored en submodule git pinné dans `lib/libsmb2/`.
 
+## Parseur TOML : tomlc17
+
+Copié tel quel dans `src/vendor/tomlc17/` (MIT, un `.c` + un `.h`, aucune étape
+de build séparée), voir `VENDORED.md` pour le commit épinglé. Choisi plutôt que
+tomlc99, dont le README déclare la bibliothèque obsolète.
+
+Il utilise `static_assert` (C11) : le Makefile lui applique `-std=gnu11` via une
+règle dédiée, le reste du pak restant en `-std=gnu99`.
+
 ## Build & cross-compilation
 
-Même squelette que gift-code :
 - `build-desktop.sh` / `build-tg5040.sh` / `build-tg5050.sh` / `run-docker.sh`
 - Symlink `.nextui-workspace`
 - Toolchain Docker `ghcr.io/loveretro/${PLATFORM}-toolchain`
 - `CROSS_COMPILE=aarch64-nextui-linux-gnu-`
 
-Extensions au Makefile de gift-code :
-1. Plusieurs fichiers `LOCAL_SRC` au lieu d'un seul.
-2. `libsmb2` compilé séparément (son propre build CMake, GSSAPI désactivé)
-   en `libsmb2.a` statique par plateforme, lié via `MY_LDFLAGS += -lsmb2`
-   avec les `-L`/`-I` appropriés.
-
-`build-desktop.sh` compile aussi libsmb2 nativement pour l'itération locale.
-
-## Gestion des erreurs (mapping)
-
-| Cause | Écran |
-|---|---|
-| Hôte injoignable / timeout | 5 |
-| Authentification refusée (`STATUS_LOGON_FAILURE`) | 5 |
-| Partage/chemin distant introuvable (`STATUS_OBJECT_NAME_NOT_FOUND` / `OBJECT_PATH_NOT_FOUND`) | 5 |
-| Disque local plein / illisible (`ENOSPC` / `EACCES`) | 5 |
-| Serveur référencé par un job introuvable | 5 |
-| Erreurs non fatales par fichier | 5bis (résumé) |
+`lib/build-libsmb2.sh` compile libsmb2 en statique par plateforme avec
+`-DENABLE_LIBKRB5=OFF -DENABLE_GSSAPI=OFF` : laissé à l'auto-détection, Kerberos
+reste désactivé dans les toolchains des consoles (pas de krb5 dans leur sysroot)
+mais s'active en build natif sous macOS, où l'édition de liens échoue ensuite
+contre le GSS système.
 
 ## Stratégie de test
 
 - `build-desktop.sh` comme outil principal d'itération.
-- Conteneur Samba Docker jetable sur la machine de dev (Raspberry Pi
-  homelab) pour tester le SMB réel, ex. :
-  `docker run -p 445:445 -v $(pwd)/testshare:/share dperson/samba ...`
-- Pas de tests automatisés prévus (comme gift-code).
-- Validation manuelle : `build-desktop.sh` puis sur device via
-  `build-tg5040.sh`/`build-tg5050.sh` + ADB avant chaque release.
+- Conteneur Samba Docker jetable pour tester le SMB réel, ex. :
+  `docker run -d -p 1445:445 -v $(pwd)/share:/share dperson/samba -u "tester;secret" -s "Roms;/share;yes;no;no;tester" -p`
+- Pas de tests automatisés dans le dépôt (comme gift-code). Les modules de
+  synchro étant sans dépendance à SDL, ils se pilotent en revanche depuis un
+  petit harnais en ligne de commande (stubs pour `defines.h`/`api.h`/`utils.h`),
+  ce qui couvre vérification, synchro, erreurs, Miroir et annulation sans UI.
+- Validation manuelle sur device via `build-tg5040.sh`/`build-tg5050.sh` + ADB
+  avant chaque release.
 
-## Risques techniques / points à valider en implémentation
+## Risques techniques / points à valider
 
-- **Sync engine sans thread** : pas encore vérifié qu'un appel libsmb2
-  unique ne puisse pas bloquer assez longtemps pour geler visiblement
-  l'UI. Pourrait nécessiter des chunks plus petits, ou un vrai thread
-  dédié avec passage de messages (plus proche de ce que fait probablement
-  Mortar.pak en Go) si ça pose problème en pratique.
-- **Cross-compilation aarch64 de libsmb2** : ✅ validée le 2026-09-15. Voir
-  section suivante pour le détail.
+- **Vérification bloquante** : `sync_engine_check()` est synchrone. L'UI se
+  redessine entre deux liaisons mais gèle pendant chacune, et B n'interrompt
+  qu'entre deux liaisons. À réévaluer sur un partage volumineux ; un thread
+  dédié serait la solution.
+- **Détection « déjà présent » par nom + taille** : un fichier distant modifié
+  sans changement de taille n'est pas recopié.
+- **Casse des noms de fichiers** : exFAT/FAT32 est insensible à la casse, pas la
+  comparaison faite ici — un renommage distant limité à la casse peut donner un
+  diff incohérent.
 - **Noms exacts des variables d'environnement** (`$SHARED_USERDATA_PATH`,
-  `$SDCARD_PATH`) supposés stables (utilisés tels quels par gift-code) mais
-  pas encore confirmés sur un vrai environnement NextUI.
+  `$SDCARD_PATH`) supposés stables (utilisés tels quels par gift-code) mais pas
+  encore confirmés sur un vrai environnement NextUI.
 
 ## Validation : cross-compilation de libsmb2 (2026-09-15)
 
 Testé indépendamment de l'app, en pointant `cmake` directement sur le
-compilateur du conteneur `ghcr.io/loveretro/tg5040-toolchain` (pas besoin du
-workspace NextUI complet, libsmb2 n'a aucune dépendance vers `all/common`) :
+compilateur du conteneur `ghcr.io/loveretro/tg5040-toolchain` :
 
 - Toolchain confirmée dans l'image : `aarch64-nextui-linux-gnu-gcc`
   (crosstool-NG 1.25.0, gcc 8.3.0), `cmake` 3.28.3, `make`, `git`.
-- Configure CMake avec un toolchain file minimal
-  (`CMAKE_SYSTEM_NAME=Linux`, `CMAKE_SYSTEM_PROCESSOR=aarch64`,
-  `CMAKE_C_COMPILER=aarch64-nextui-linux-gnu-gcc`),
-  `-DBUILD_SHARED_LIBS=OFF -DENABLE_EXAMPLES=OFF -DENABLE_LIBDCERPC=OFF` :
-  réussi sans intervention. `find_package(GSSAPI)` échoue comme prévu (pas
-  de krb5 dans le sysroot du toolchain) et libsmb2 désactive automatiquement
-  Kerberos/GSSAPI (`ENABLE_LIBKRB5`/`ENABLE_GSSAPI` retombent à `OFF`) — pas
-  besoin de le forcer explicitement.
-- `make` : compile intégralement, produit `libsmb2.a` (~630KB, confirmé
-  ELF `aarch64` via `readelf`/`objdump`).
-- Test de link : petit programme appelant `smb2_init_context()` /
-  `smb2_destroy_context()`, lié contre `libsmb2.a` avec le même compilateur
-  — réussi en dynamique (aucun warning) et en statique (un seul warning
-  attendu sur `getaddrinfo` en lien statique, sans incidence puisque le pak
-  liera dynamiquement comme gift-code).
+- Configure CMake avec un toolchain file minimal, `-DBUILD_SHARED_LIBS=OFF
+  -DENABLE_EXAMPLES=OFF -DENABLE_LIBDCERPC=OFF` : réussi sans intervention.
+- `make` : produit `libsmb2.a` (~630KB, ELF `aarch64`).
+- Test de link avec `smb2_init_context()`/`smb2_destroy_context()` : réussi.
 
-Conclusion : aucun blocage. `libsmb2` peut être vendoré tel quel et compilé
-avec `ENABLE_LIBDCERPC=OFF` (share-enum minimal suffit pour un client) et
-Kerberos se désactive de lui-même sur ce toolchain — pas de flag
-supplémentaire à ajouter dans le Makefile au-delà de ce qui était déjà prévu.
+Le pak complet (libsmb2 + tomlc17 + sources) se cross-compile depuis, vérifié
+sur `tg5040`.
