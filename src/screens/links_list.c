@@ -89,14 +89,12 @@ static void statusText(int index, char *out, size_t out_size)
 		snprintf(out, out_size, "Vérification…");
 		return;
 	case LINK_PHASE_CHECKED: {
+		// Just "il y a quelque chose à faire" here; the counts (and what
+		// mirror mode would delete) are on écran 2.
 		const LinkCheck *check = sync_queue_check(index);
 		if (!check->ok) snprintf(out, out_size, "Erreur : %s", check->message);
 		else if (check->to_copy_count == 0 && check->to_delete_count == 0) snprintf(out, out_size, "À jour");
-		else {
-			plural(a, sizeof(a), check->to_copy_count, "nouveau", "nouveaux");
-			if (check->to_delete_count > 0) snprintf(out, out_size, "%s · %d à supprimer", a, check->to_delete_count);
-			else snprintf(out, out_size, "%s", a);
-		}
+		else snprintf(out, out_size, "[Nouveau]");
 		return;
 	}
 	case LINK_PHASE_SYNCING: {
@@ -106,11 +104,15 @@ static void statusText(int index, char *out, size_t out_size)
 			snprintf(out, out_size, "Suppression %d/%d", p.files_deleted, p.to_delete_count);
 		}
 		else if (state == SYNC_STATE_COPYING && p.current_file[0]) {
+			// Progress by volume, not by file count: files vary wildly in
+			// size, so "5/8" tells you little about how long is left.
 			int percent = p.to_copy_bytes > 0 ? (int)(p.bytes_done * 100 / p.to_copy_bytes) : 100;
 			if (percent > 100) percent = 100;
 			const char *name = strrchr(p.current_file, '/');
 			name = name ? name + 1 : p.current_file;
-			snprintf(out, out_size, "%d/%d · %s · %d%%", p.files_done + 1, p.to_copy_count, name, percent);
+			char total[32];
+			UI_formatBytes(p.to_copy_bytes, total, sizeof(total));
+			snprintf(out, out_size, "%s · %d%% de %s", name, percent, total);
 		}
 		else {
 			snprintf(out, out_size, "Connexion…");

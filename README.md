@@ -167,7 +167,7 @@ shows the link name, `[Miroir]` if it is in mirror mode, and its status:
 | Status                          | Meaning                                       |
 |---------------------------------|-----------------------------------------------|
 | `En attente` / `Vérification…`  | Waiting its turn / being checked              |
-| `12 nouveaux · 3 à supprimer`   | Changes to apply (deletions in mirror mode)   |
+| `[Nouveau]`                     | Something to sync — counts are on the detail screen |
 | `À jour`                        | Nothing to copy or delete                     |
 | `Erreur : …`                    | The check failed (network, credentials, path) |
 | `Config : …`                    | The file is wrong for this link               |
@@ -185,8 +185,9 @@ The bottom line shows when the last sync ran and how many links failed.
 ### Running a sync
 
 Press **A**. Links are synced one after another, on this same screen: the
-active line shows the file being copied, the count and the percentage. A
-failing link never stops the ones after it — its error is recorded and shown.
+active line shows the file being copied and the progress **by volume**
+(percentage of the total to copy, and that total). A failing link never stops
+the ones after it — its error is recorded and shown.
 
 **B** cancels the current link and all remaining ones. Whatever was already
 copied stays in place, and no partly-downloaded file is ever left behind.
@@ -210,8 +211,8 @@ folder. Deletions:
 - **only** affect that link's destination folder, never anything outside it;
 - happen **only after** every file copied successfully — if any file failed,
   nothing is deleted;
-- are counted on the main screen after a check (`3 à supprimer`), before you
-  start the sync.
+- are counted on the link's detail screen after a check, before you start the
+  sync (the main screen only shows `[Nouveau]`).
 
 Files are compared by **name and size**: a remote file modified without any
 size change is not re-copied.

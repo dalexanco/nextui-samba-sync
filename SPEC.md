@@ -149,7 +149,7 @@ Pendant la vérification :
 ```
 Samba Sync
 ─────────────────────────────────────────
-▸ Roms GBA    [Miroir]   12 nouveaux · 3 à supprimer
+▸ Roms GBA    [Miroir]   [Nouveau]
   Roms SNES              Vérification…
   Bios                   En attente
 
@@ -161,7 +161,7 @@ Vérification terminée :
 ```
 Samba Sync
 ─────────────────────────────────────────
-▸ Roms GBA    [Miroir]   12 nouveaux · 3 à supprimer
+▸ Roms GBA    [Miroir]   [Nouveau]
   Roms SNES              À jour
   Bios                   Erreur : Serveur injoignable
   Saves                  Config : share manquant
@@ -174,8 +174,9 @@ X  Vérif.   Y  Détail   A  Synchro   B  Quitter
 **États possibles d'une liaison** (colonne de droite) :
 - `En attente` — pas encore vérifiée.
 - `Vérification…` — connexion et comparaison en cours.
-- `N nouveaux` (+ `· M à supprimer` en mode Miroir si des suppressions sont prévues) — des
-  changements sont à appliquer.
+- `[Nouveau]` — il y a quelque chose à synchroniser (fichiers à copier et/ou, en mode Miroir, à
+  supprimer). **Pas de chiffres ici** : le détail (combien, quel volume, combien de suppressions)
+  est sur l'écran 2, pour que la liste reste lisible d'un coup d'œil.
 - `À jour` — rien à copier ni à supprimer.
 - `Erreur : <raison courte>` — la vérification a échoué (réseau, authentification, partage ou
   dossier introuvable). Une config invalide affiche directement sa raison (`Config : …`).
@@ -202,7 +203,7 @@ La synchro se déroule **sur l'écran principal**, sans écran de progression d�
 Synchronisation 2/4
 ─────────────────────────────────────────
   Roms GBA    [Miroir]   12 copiés · 3 supprimés
-▸ Roms SNES              5/8 · Chrono Trigger.sfc · 62%
+▸ Roms SNES              Chrono Trigger.sfc · 62% de 1,4 Go
   Bios                   En attente
   Saves                  Config : share manquant
 
@@ -216,8 +217,10 @@ B  Annuler
   avant la copie, pour que les suppressions Miroir reposent sur un état à jour) → copie fichier
   par fichier → **en mode Miroir**, suppressions en dernier, seulement si toutes les copies ont
   réussi.
-- La ligne de la liaison en cours affiche : fichiers traités / total, nom du fichier courant,
-  pourcentage.
+- La ligne de la liaison en cours affiche le fichier courant et la **progression en volume**
+  (pourcentage du poids total à copier, et ce poids). Le nombre de fichiers ne dit pas grand-chose
+  du temps restant quand leurs tailles varient ; le volume, si. Pendant la phase de suppression du
+  mode Miroir, la ligne affiche `Suppression n/N`.
 - À la fin d'une liaison, sa ligne affiche son résultat : `N copiés · M supprimés`, `À jour`,
   `Partiel · N copiés · K erreurs` si certains fichiers ont échoué, ou `Erreur : <raison>`.
 - **Un échec n'interrompt pas la file** : l'erreur est enregistrée et la liaison suivante démarre.
