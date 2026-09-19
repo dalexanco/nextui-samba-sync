@@ -21,9 +21,9 @@ card out.
 Captured on a TrimUI Brick (tg5040) running the pak against a real SMB share.
 
 <p align="center">
-  <img src="docs/screenshots/links-list.png" alt="The list of links, each with its status" width="280">
-  <img src="docs/screenshots/syncing.png" alt="A link syncing, showing its progress in percent" width="280">
-  <img src="docs/screenshots/link-detail.png" alt="A link's detail screen with its last sync" width="280">
+  <img src="docs/screenshots/links-list.png" alt="The list of links, each with its status" width="240">
+  <img src="docs/screenshots/syncing.png" alt="A link syncing, showing its progress in percent" width="240">
+  <img src="docs/screenshots/link-detail.png" alt="A link's detail screen with its last sync" width="240">
 </p>
 
 Left to right: **the links after a sync**, each with its status — **a sync
