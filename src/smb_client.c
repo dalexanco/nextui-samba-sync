@@ -100,10 +100,24 @@ void smb_disconnect(SmbSession *session)
 	free(session);
 }
 
+// One entry of a directory, copied out of libsmb2's own storage.
+typedef struct {
+	char name[BROWSE_STR_MAX];
+	bool is_dir;
+	long long size;
+} DirEntry;
+
 // dir_path is share-relative (what smb2_opendir needs); rel_prefix is
 // relative to the recursion root (what ends up in out[].rel_path). They
 // diverge as soon as the recursion root isn't the share root, which is the
 // common case (link->remote is normally a subfolder).
+//
+// A directory is read completely, and closed, BEFORE descending into its
+// subfolders: opening another directory on the same smb2 context while a
+// readdir loop is in flight makes that loop drop the entries it hadn't
+// returned yet (observed against a real NAS -- the same share listed 272
+// files once, then 110, silently). A short listing is not a cosmetic bug
+// here: mirror mode deletes whatever it doesn't see remotely.
 static void smbListRecurse(struct smb2_context *smb2, const char *dir_path, const char *rel_prefix,
                             BrowseFileEntry *out, int max_entries, int *count, SmbError *error)
 {
@@ -113,31 +127,59 @@ static void smbListRecurse(struct smb2_context *smb2, const char *dir_path, cons
 		return;
 	}
 
+	int capacity = 64;
+	int entry_count = 0;
+	DirEntry *entries = malloc(capacity * sizeof(*entries));
+	if (!entries) {
+		smb2_closedir(smb2, dir);
+		*error = SMB_ERR_FAILED;
+		return;
+	}
+
 	struct smb2dirent *entry;
 	while ((entry = smb2_readdir(smb2, dir))) {
 		if (hide((char *)entry->name)) continue; // also covers "." and ".."
+		if (entry->st.smb2_type != SMB2_TYPE_DIRECTORY && entry->st.smb2_type != SMB2_TYPE_FILE) continue;
 
-		char child_path[BROWSE_STR_MAX];
-		browse_path_push(child_path, dir_path, entry->name);
-		char child_rel[BROWSE_STR_MAX];
-		browse_path_push(child_rel, rel_prefix, entry->name);
-
-		if (entry->st.smb2_type == SMB2_TYPE_DIRECTORY) {
-			smbListRecurse(smb2, child_path, child_rel, out, max_entries, count, error);
-			if (*error != SMB_OK) break;
-		}
-		else if (entry->st.smb2_type == SMB2_TYPE_FILE) {
-			if (*count >= max_entries) {
-				*error = SMB_ERR_TOO_MANY_FILES;
-				break;
+		if (entry_count == capacity) {
+			DirEntry *grown = realloc(entries, capacity * 2 * sizeof(*entries));
+			if (!grown) {
+				free(entries);
+				smb2_closedir(smb2, dir);
+				*error = SMB_ERR_FAILED;
+				return;
 			}
+			entries = grown;
+			capacity *= 2;
+		}
+
+		snprintf(entries[entry_count].name, BROWSE_STR_MAX, "%s", entry->name);
+		entries[entry_count].is_dir = entry->st.smb2_type == SMB2_TYPE_DIRECTORY;
+		entries[entry_count].size = (long long)entry->st.smb2_size;
+		entry_count++;
+	}
+	smb2_closedir(smb2, dir);
+
+	for (int i = 0; i < entry_count && *error == SMB_OK; i++) {
+		char child_path[BROWSE_STR_MAX];
+		browse_path_push(child_path, dir_path, entries[i].name);
+		char child_rel[BROWSE_STR_MAX];
+		browse_path_push(child_rel, rel_prefix, entries[i].name);
+
+		if (entries[i].is_dir) {
+			smbListRecurse(smb2, child_path, child_rel, out, max_entries, count, error);
+		}
+		else if (*count >= max_entries) {
+			*error = SMB_ERR_TOO_MANY_FILES;
+		}
+		else {
 			snprintf(out[*count].rel_path, BROWSE_STR_MAX, "%s", child_rel);
-			out[*count].size = (long long)entry->st.smb2_size;
+			out[*count].size = entries[i].size;
 			(*count)++;
 		}
 	}
 
-	smb2_closedir(smb2, dir);
+	free(entries);
 }
 
 int smb_list_files_recursive(SmbSession *session, const char *remote_path, BrowseFileEntry *out, int max_entries, SmbError *out_error)
