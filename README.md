@@ -20,7 +20,7 @@ card out.
 
 Captured on a TrimUI Brick (tg5040) running the pak against a real SMB share.
 
-![The list of links, each with its status](docs/screenshots/links-list.png) ![A link syncing, showing its progress in percent](docs/screenshots/syncing.png) ![A link's detail screen with its last sync](docs/screenshots/link-detail.png)
+![The list of links, each with its status](docs/screenshots/main-screen.png) ![A link syncing, showing its progress in percent](docs/screenshots/sync-running.png) ![A link's detail screen with its last sync](docs/screenshots/link-detail.png)
 
 Left to right: **the links after a sync**, each with its status — **a sync
 running**, the active link showing the share of data transferred — **one
