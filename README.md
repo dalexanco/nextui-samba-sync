@@ -22,7 +22,7 @@ Captured on a TrimUI Brick (tg5040) running the pak against a real SMB share.
 
 | The links, after a sync | A sync running | One link's detail |
 |:---:|:---:|:---:|
-| ![The list of links, each with its status](docs/screenshots/links-list.png) | ![A link syncing, showing its progress in percent](docs/screenshots/syncing.png) | ![A link's detail screen with its last sync](docs/screenshots/link-detail.png) |
+| <img src="docs/screenshots/links-list.png" alt="The list of links, each with its status" width="320"> | <img src="docs/screenshots/syncing.png" alt="A link syncing, showing its progress in percent" width="320"> | <img src="docs/screenshots/link-detail.png" alt="A link's detail screen with its last sync" width="320"> |
 | Every link and its status; the footer says when the last sync ran. | Links are synced in order, on the same screen: the active one shows the share of data transferred. | Check, last sync and — if any — the files that failed. |
 
 ## Contents
