@@ -12,8 +12,17 @@
 #include "local_fs.h"
 #include "sync_engine.h"
 
-#define COPY_CHUNK_SIZE (64 * 1024)
-#define TICK_BUDGET_MS 30
+// One SMB read per chunk, and each read is a full round trip to the server
+// (libsmb2's synchronous API keeps a single request in flight), so the chunk
+// size *is* the throughput ceiling: bytes per RTT. Ask for 1 MB -- libsmb2
+// caps the request at whatever the server negotiated (smb2_get_max_read_size,
+// commonly 1 MB) and at the credits it holds, and a short read is fine here.
+#define COPY_CHUNK_SIZE (1024 * 1024)
+
+// Wall time the copy loop may hold before giving the frame back. Generous on
+// purpose: everything spent rendering is not spent transferring, and the only
+// thing waiting on it is the B button.
+#define TICK_BUDGET_MS 100
 
 // Listings scratch space and the diff being executed. Static rather than
 // stack: several MB at BROWSE_MAX_FILES.

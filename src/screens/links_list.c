@@ -1,3 +1,4 @@
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -10,6 +11,11 @@
 #include "links_list.h"
 
 #define ROW_HEIGHT (PILL_SIZE + 6)
+
+// While syncing, the copy loop owns the frame: redrawing a percentage 60
+// times a second would spend a good third of the wall time in the renderer
+// instead of in the transfer. 4 Hz is plenty for a percentage.
+#define SYNC_REDRAW_MS 250
 
 static int selected = 0;
 static int scroll_offset = 0;
@@ -53,7 +59,16 @@ LinksListAction LinksList_input(int *dirty)
 		*dirty = 1;
 	}
 
-	if (sync_queue_tick()) *dirty = 1;
+	if (sync_queue_tick()) {
+		static uint32_t last_redraw = 0;
+		uint32_t now = SDL_GetTicks();
+		// Anything but a sync in progress (a check finishing, the run ending)
+		// is a one-off change and redraws right away.
+		if (sync_queue_mode() != QUEUE_SYNCING || now - last_redraw >= SYNC_REDRAW_MS) {
+			last_redraw = now;
+			*dirty = 1;
+		}
+	}
 	return LINKS_LIST_ACTION_NONE;
 }
 

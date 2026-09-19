@@ -1,5 +1,7 @@
 #include <string.h>
 
+#include "defines.h" // api.h needs the platform defines first
+#include "api.h"
 #include "sync_queue.h"
 
 static LinkPhase phases[MAX_LINKS];
@@ -58,6 +60,10 @@ void sync_queue_sync_all(void)
 	}
 	current = nextPending(0, LINK_PHASE_SYNC_PENDING);
 	mode = current < sync_config_link_count() ? QUEUE_SYNCING : QUEUE_IDLE;
+	// A sync is the one thing this pak does that is not a menu: SMB2 packet
+	// handling, NTLM signing and the writes to the SD card all want the
+	// cores. Back to the menu governor as soon as the run ends.
+	if (mode == QUEUE_SYNCING) PWR_setCPUSpeed(CPU_SPEED_PERFORMANCE);
 }
 
 static bool tickCheck(void)
@@ -108,6 +114,7 @@ static bool tickSync(void)
 		if (current >= sync_config_link_count()) {
 			mode = QUEUE_IDLE;
 			sync_finished = true;
+			PWR_setCPUSpeed(CPU_SPEED_AUTO);
 		}
 	}
 	return true;
@@ -141,6 +148,7 @@ void sync_queue_cancel(void)
 		for (int i = 0; i < count; i++)
 			if (phases[i] == LINK_PHASE_SYNC_PENDING) phases[i] = LINK_PHASE_SYNC_CANCELLED;
 		sync_finished = true;
+		PWR_setCPUSpeed(CPU_SPEED_AUTO);
 	}
 	mode = QUEUE_IDLE;
 }
