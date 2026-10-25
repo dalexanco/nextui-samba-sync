@@ -48,22 +48,49 @@ void sync_queue_check_all(void)
 	mode = current < sync_config_link_count() ? QUEUE_CHECKING : QUEUE_IDLE;
 }
 
-void sync_queue_sync_all(void)
+// A sync is the one thing this pak does that is not a menu: SMB2 packet
+// handling, NTLM signing and the writes to the SD card all want the cores.
+// And nobody presses a button while it runs, so NextUI's screen timeout would
+// put the device to sleep mid-transfer: the process stops, Wi-Fi goes down
+// with deep sleep, and the session is dead on wake ("Connection lost").
+// Manual sleep (power button) still works.
+static void beginSyncRun(void)
+{
+	PWR_setCPUSpeed(CPU_SPEED_PERFORMANCE);
+	PWR_disableAutosleep();
+}
+
+static void endSyncRun(void)
+{
+	sync_finished = true;
+	PWR_setCPUSpeed(CPU_SPEED_AUTO);
+	PWR_enableAutosleep();
+}
+
+// Queues every valid link (only = -1) or just link `only`.
+static void startSync(int only)
 {
 	sync_finished = false;
 	sync_total = 0;
 	sync_position = 0;
 	for (int i = 0; i < sync_config_link_count(); i++) {
-		if (!isValid(i)) continue;
+		if (!isValid(i) || (only >= 0 && i != only)) continue;
 		phases[i] = LINK_PHASE_SYNC_PENDING;
 		sync_total++;
 	}
 	current = nextPending(0, LINK_PHASE_SYNC_PENDING);
 	mode = current < sync_config_link_count() ? QUEUE_SYNCING : QUEUE_IDLE;
-	// A sync is the one thing this pak does that is not a menu: SMB2 packet
-	// handling, NTLM signing and the writes to the SD card all want the
-	// cores. Back to the menu governor as soon as the run ends.
-	if (mode == QUEUE_SYNCING) PWR_setCPUSpeed(CPU_SPEED_PERFORMANCE);
+	if (mode == QUEUE_SYNCING) beginSyncRun();
+}
+
+void sync_queue_sync_all(void)
+{
+	startSync(-1);
+}
+
+void sync_queue_sync_one(int link_index)
+{
+	startSync(link_index);
 }
 
 static bool tickCheck(void)
@@ -113,8 +140,7 @@ static bool tickSync(void)
 		current = nextPending(current + 1, LINK_PHASE_SYNC_PENDING);
 		if (current >= sync_config_link_count()) {
 			mode = QUEUE_IDLE;
-			sync_finished = true;
-			PWR_setCPUSpeed(CPU_SPEED_AUTO);
+			endSyncRun();
 		}
 	}
 	return true;
@@ -147,8 +173,7 @@ void sync_queue_cancel(void)
 		}
 		for (int i = 0; i < count; i++)
 			if (phases[i] == LINK_PHASE_SYNC_PENDING) phases[i] = LINK_PHASE_SYNC_CANCELLED;
-		sync_finished = true;
-		PWR_setCPUSpeed(CPU_SPEED_AUTO);
+		endSyncRun();
 	}
 	mode = QUEUE_IDLE;
 }
@@ -186,6 +211,11 @@ const LinkCheck *sync_queue_check(int link_index)
 const LinkState *sync_queue_last(int link_index)
 {
 	return &lasts[link_index];
+}
+
+bool sync_queue_can_sync_one(int link_index)
+{
+	return mode == QUEUE_IDLE && link_index >= 0 && link_index < sync_config_link_count() && isValid(link_index);
 }
 
 bool sync_queue_can_sync(void)

@@ -64,7 +64,14 @@ int main(int argc, char *argv[])
 		}
 		case SCREEN_LINK_DETAIL: {
 			LinkDetailAction action = LinkDetail_input(&dirty);
-			if (action == LINK_DETAIL_ACTION_BACK) {
+			if (action == LINK_DETAIL_ACTION_SYNC) {
+				// SPEC.md: a sync runs on the main screen. The list cursor is
+				// still on this link, LinkDetail_enter() was given it.
+				sync_queue_sync_one(LinksList_selected());
+				active_screen = SCREEN_LINKS_LIST;
+				dirty = 1;
+			}
+			else if (action == LINK_DETAIL_ACTION_BACK) {
 				active_screen = SCREEN_LINKS_LIST;
 				dirty = 1;
 			}

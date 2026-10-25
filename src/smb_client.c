@@ -40,12 +40,22 @@ const char *smb_error_label(SmbError error)
 }
 
 // Maps the NT status of the last failed libsmb2 call. A failure with no NT
-// status at all means we never got an answer from the server.
+// status at all means we never got an answer from the server. So does
+// IO_TIMEOUT: libsmb2 synthesizes it when smb2_set_timeout() expires (the
+// server never replied), and leaving it as a per-file error would make the
+// sync wait out the timeout once for every file left on a dead connection.
 static SmbError lastError(struct smb2_context *smb2)
 {
 	uint32_t status = (uint32_t)smb2_get_nterror(smb2);
 	switch (status) {
-	case 0: return SMB_ERR_UNREACHABLE;
+	case 0:
+	case SMB2_STATUS_IO_TIMEOUT:
+	case SMB2_STATUS_NETWORK_NAME_DELETED:
+	case SMB2_STATUS_USER_SESSION_DELETED:
+	case SMB2_STATUS_CONNECTION_DISCONNECTED:
+	case SMB2_STATUS_CONNECTION_RESET:
+	case SMB2_STATUS_CONNECTION_ABORTED:
+		return SMB_ERR_UNREACHABLE;
 	case SMB2_STATUS_LOGON_FAILURE:
 	case SMB2_STATUS_ACCOUNT_RESTRICTION:
 	case SMB2_STATUS_ACCOUNT_DISABLED:

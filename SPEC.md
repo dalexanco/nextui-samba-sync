@@ -213,6 +213,9 @@ B  Cancel
   `Up to date` if there was nothing to do, `Partial · K errors` if some files failed, or
   `Error: <reason>`. The counts are on screen 2, next to the errors that explain them.
 - **A failure does not interrupt the queue**: the error is recorded and the next link starts.
+- **The device does not auto-sleep during a sync**: nobody touches the buttons while it runs, and
+  NextUI's screen timeout would otherwise suspend the device mid-transfer (Wi-Fi down, session dead
+  on wake, `Error: Connection lost`). The power button still puts it to sleep.
 - **B**: cancels the current link and every remaining one. What was already copied stays in place;
   mirror deletions already done are not undone, the remaining ones are not performed. The current
   link and the following ones are marked `Cancelled`.
@@ -242,7 +245,7 @@ Remote      Roms/GBA
 Local       Roms/Game Boy Advance (GBA)
 Mode        Mirror
 
-B  Back
+A  Retry   B  Back
 ```
 
 The check and the last sync come first: they are what the screen is opened for, and the
@@ -266,6 +269,11 @@ continuation aligned under the value column — paths and error messages are rou
   counters (one per line), and the list of errors (link-wide error, or per-file errors). The screen
   scrolls (up/down); the list is limited to the first 50 errors, with the total still shown.
 - **Configuration**: read-only recap of what the file says.
+- **A**: syncs **this link alone**, whatever its check or last sync said — this is how a failed
+  sync is retried, without re-running every other link. Labelled `Retry` when the last sync failed,
+  `Sync` otherwise; absent for a link with a config error, or while the check is still running.
+  The sync runs on the main screen, exactly like "Sync everything" with a single link (`Syncing 1/1`,
+  B cancels).
 - **B**: back to the main screen.
 
 ---
@@ -277,7 +285,7 @@ Each appears as a short reason on the main screen, and in full on the detail scr
 | Case                                    | Scope                                              |
 |-----------------------------------------|----------------------------------------------------|
 | Invalid config (see tolerance)          | Link                                               |
-| Host unreachable / timeout              | Link                                               |
+| Host unreachable / timeout              | Link (a timeout mid-sync counts as connection lost) |
 | Authentication refused                  | Link                                               |
 | Share or remote folder not found        | Link                                               |
 | Local folder cannot be created          | Link                                               |
@@ -298,13 +306,13 @@ the SD card).
 - Main screen listing the links with a progressive check on open (something new, errors).
 - "Sync everything" in one press, run in sequence, with progress shown in the list.
 - A failure doesn't stop the other links; it is persisted and flagged.
-- Detail screen per link: config, check, last sync result, list of errors.
+- Detail screen per link: config, check, last sync result, list of errors, and A to sync that link
+  alone (retry after a failure).
 - Add / Mirror mode per link.
 
 ## Out of scope for v2
 
 - Creating or editing links or servers from the console.
-- Syncing a single link from the UI.
 - Push SD → Samba, two-way sync.
 - Extension/pattern filters.
 - Scheduled / at-boot / background sync.

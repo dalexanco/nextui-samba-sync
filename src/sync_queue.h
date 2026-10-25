@@ -41,6 +41,10 @@ void sync_queue_check_all(void);
 // Starts syncing every valid link. Only call while QUEUE_IDLE.
 void sync_queue_sync_all(void);
 
+// Starts syncing just this link, whatever its check or last sync said (the
+// retry after a failure, from screen 2). Only call while QUEUE_IDLE.
+void sync_queue_sync_one(int link_index);
+
 // Advances the current run. Each call does at most one blocking check or one
 // sync_engine_tick() slice; a link is first moved to CHECKING/SYNCING by a
 // call of its own so the screen can show it before the blocking part.
@@ -68,5 +72,8 @@ const LinkState *sync_queue_last(int link_index);  // persisted last sync (statu
 
 // Can "Sync everything" run: idle, and at least one valid link.
 bool sync_queue_can_sync(void);
+
+// Can sync_queue_sync_one(link_index) run: idle, and that link is valid.
+bool sync_queue_can_sync_one(int link_index);
 
 #endif

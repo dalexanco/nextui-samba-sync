@@ -203,6 +203,9 @@ the ones after it — its error is recorded and shown.
 **B** cancels the current link and all remaining ones. Whatever was already
 copied stays in place, and no partly-downloaded file is ever left behind.
 
+The device doesn't go to sleep on its own while a sync runs (the power button
+still works), so a long transfer isn't cut off by the screen timeout.
+
 ### Detail screen
 
 Press **Y** on a link. It shows, in this order: the result of the last check,
@@ -216,6 +219,9 @@ the total).
 
 Long values, such as paths and error messages, wrap onto several lines rather
 than being cut off. Use up/down to scroll, **B** to go back.
+
+**A** syncs this link alone — shown as **Retry** after a failed sync. The run
+happens on the main screen, like a full sync with a single link.
 
 ## Sync modes
 
@@ -251,8 +257,6 @@ size change is not re-copied.
   so far.
 - **Checking blocks the UI** while a link is being checked: the screen updates
   between links, and **B** only takes effect between two links.
-- **Syncing a single link** from the UI isn't available; **A** always syncs
-  everything (links already up to date pass through quickly).
 - At most **4096 files per side** of a link; beyond that the link reports an
   error instead of syncing a partial listing.
 

@@ -195,6 +195,7 @@ static int visibleLines(void)
 LinkDetailAction LinkDetail_input(int *dirty)
 {
 	if (PAD_justPressed(BTN_B)) return LINK_DETAIL_ACTION_BACK;
+	if (PAD_justPressed(BTN_A) && sync_queue_can_sync_one(link_index)) return LINK_DETAIL_ACTION_SYNC;
 
 	int max_scroll = row_count - visibleLines();
 	if (max_scroll < 0) max_scroll = 0;
@@ -282,6 +283,13 @@ void LinkDetail_render(SDL_Surface *screen, int show_setting)
 		y += SCALE1(LINE_HEIGHT);
 	}
 
-	GFX_blitButtonGroup((char *[]){ "B", "BACK", NULL }, 0, screen, 1);
+	if (sync_queue_can_sync_one(link_index)) {
+		// Any sync can be rerun, but after a failure that is what A is for.
+		char *verb = link_state_failed(sync_queue_last(link_index)) ? "RETRY" : "SYNC";
+		GFX_blitButtonGroup((char *[]){ "A", verb, "B", "BACK", NULL }, 1, screen, 1);
+	}
+	else {
+		GFX_blitButtonGroup((char *[]){ "B", "BACK", NULL }, 0, screen, 1);
+	}
 	if (show_setting) GFX_blitHardwareHints(screen, show_setting);
 }

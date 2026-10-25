@@ -105,8 +105,10 @@ at 60 fps, one chunk per tick capped the throughput. The chunk itself is
 `COPY_CHUNK_SIZE` (1 MB) — libsmb2's synchronous API keeps a single request in
 flight, so the chunk size *is* the throughput ceiling (bytes per RTT); libsmb2
 trims the request down to the negotiated `max_read_size`. During a sync,
-`sync_queue.c` switches the CPU to `CPU_SPEED_PERFORMANCE` and the screen is
-redrawn at only 4 Hz: whatever goes into rendering does not go into the
+`sync_queue.c` switches the CPU to `CPU_SPEED_PERFORMANCE`, disables NextUI's
+autosleep (`PWR_disableAutosleep()`: with no button pressed, the screen timeout
+would suspend the device mid-transfer and kill the SMB session), and the screen
+is redrawn at only 4 Hz: whatever goes into rendering does not go into the
 transfer.
 
 Error rules:
@@ -125,7 +127,9 @@ Error rules:
 ### `sync_queue.c/.h`
 
 Sits above `sync_engine`, walks the valid links in sequence, in check or sync
-mode. A failure never stops the queue. Moving a link to `CHECKING`/`SYNCING`
+mode — every valid link (`sync_queue_sync_all`), or a single one
+(`sync_queue_sync_one`, the retry from screen 2). A failure never stops the
+queue. Moving a link to `CHECKING`/`SYNCING`
 takes a tick of its own, so the screen shows "Checking…" **before** the
 blocking call. Keeps, per link, the display phase, the latest `LinkCheck` and
 the latest `LinkState`.
@@ -135,8 +139,10 @@ the latest `LinkState`.
 Thin wrapper around libsmb2: `smb_connect` (the share comes from the link),
 `smb_list_files_recursive`, `smb_open_read`/`smb_read_chunk`/`smb_close_read`.
 Errors are typed from `smb2_get_nterror()` (`LOGON_FAILURE` → auth,
-`BAD_NETWORK_NAME` → share, `OBJECT_*_NOT_FOUND` → folder, no NT status at all
-→ server unreachable) and `smb_error_label()` gives the label shown.
+`BAD_NETWORK_NAME` → share, `OBJECT_*_NOT_FOUND` → folder, no NT status at all,
+`IO_TIMEOUT` — which libsmb2 synthesizes when `smb2_set_timeout()` expires — or a
+dropped connection/session → server unreachable, so a dead connection ends the
+link instead of costing one timeout per remaining file) and `smb_error_label()` gives the label shown.
 
 The remote listing applies the same `hide()` rule as the local one: without it
 a remote `.DS_Store` would show up as "new" forever. Going past
