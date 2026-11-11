@@ -144,8 +144,11 @@ Errors are typed from `smb2_get_nterror()` (`LOGON_FAILURE` → auth,
 dropped connection/session → server unreachable, so a dead connection ends the
 link instead of costing one timeout per remaining file) and `smb_error_label()` gives the label shown.
 
-The remote listing applies the same `hide()` rule as the local one: without it
-a remote `.DS_Store` would show up as "new" forever. Going past
+Both listings filter through `browse_hide()`: NextUI's `hide()` rule, the same
+on both sides (without it a remote `.DS_Store` would show up as "new" forever),
+except that a **folder** named `.media` is let through — it holds NextUI box
+art. Dot-files inside it (macOS `._*`, our `.part`) stay hidden. Every libsmb2
+failure also logs its own message and NT status to stderr, i.e. `sambasync.txt`. Going past
 `BROWSE_MAX_FILES` is an explicit error: a truncated listing would, in Mirror
 mode, delete files that do exist remotely.
 

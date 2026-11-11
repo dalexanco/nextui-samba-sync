@@ -44,9 +44,15 @@ const char *smb_error_label(SmbError error)
 // IO_TIMEOUT: libsmb2 synthesizes it when smb2_set_timeout() expires (the
 // server never replied), and leaving it as a per-file error would make the
 // sync wait out the timeout once for every file left on a dead connection.
-static SmbError lastError(struct smb2_context *smb2)
+//
+// Also logs libsmb2's own message to stderr (sambasync.txt in the NextUI
+// logs folder): the label shown on screen is coarse on purpose, the log is
+// what tells "no route" from "connection refused" from a negotiate failure.
+static SmbError lastError(struct smb2_context *smb2, const char *what, const char *path)
 {
 	uint32_t status = (uint32_t)smb2_get_nterror(smb2);
+	fprintf(stderr, "[samba-sync] %s \"%s\" failed: %s (NT status 0x%08x)\n",
+	        what, path, smb2_get_error(smb2), status);
 	switch (status) {
 	case 0:
 	case SMB2_STATUS_IO_TIMEOUT:
@@ -91,7 +97,7 @@ SmbSession *smb_connect(const Server *server, const char *share, int timeout_sec
 	const char *user = server->username[0] ? server->username : NULL;
 
 	if (smb2_connect_share(smb2, host, share, user) != 0) {
-		*out_error = lastError(smb2);
+		*out_error = lastError(smb2, "connect", host);
 		smb2_destroy_context(smb2);
 		return NULL;
 	}
@@ -133,7 +139,7 @@ static void smbListRecurse(struct smb2_context *smb2, const char *dir_path, cons
 {
 	struct smb2dir *dir = smb2_opendir(smb2, dir_path);
 	if (!dir) {
-		*error = lastError(smb2);
+		*error = lastError(smb2, "opendir", dir_path);
 		return;
 	}
 
@@ -148,8 +154,9 @@ static void smbListRecurse(struct smb2_context *smb2, const char *dir_path, cons
 
 	struct smb2dirent *entry;
 	while ((entry = smb2_readdir(smb2, dir))) {
-		if (hide((char *)entry->name)) continue; // also covers "." and ".."
-		if (entry->st.smb2_type != SMB2_TYPE_DIRECTORY && entry->st.smb2_type != SMB2_TYPE_FILE) continue;
+		bool is_dir = entry->st.smb2_type == SMB2_TYPE_DIRECTORY;
+		if (browse_hide(entry->name, is_dir)) continue; // also covers "." and ".."
+		if (!is_dir && entry->st.smb2_type != SMB2_TYPE_FILE) continue;
 
 		if (entry_count == capacity) {
 			DirEntry *grown = realloc(entries, capacity * 2 * sizeof(*entries));
@@ -164,7 +171,7 @@ static void smbListRecurse(struct smb2_context *smb2, const char *dir_path, cons
 		}
 
 		snprintf(entries[entry_count].name, BROWSE_STR_MAX, "%s", entry->name);
-		entries[entry_count].is_dir = entry->st.smb2_type == SMB2_TYPE_DIRECTORY;
+		entries[entry_count].is_dir = is_dir;
 		entries[entry_count].size = (long long)entry->st.smb2_size;
 		entry_count++;
 	}
@@ -204,7 +211,7 @@ SmbFile *smb_open_read(SmbSession *session, const char *remote_path, SmbError *o
 {
 	struct smb2fh *fh = smb2_open(session->smb2, remote_path, O_RDONLY);
 	if (!fh) {
-		*out_error = lastError(session->smb2);
+		*out_error = lastError(session->smb2, "open", remote_path);
 		return NULL;
 	}
 
@@ -218,6 +225,7 @@ SmbFile *smb_open_read(SmbSession *session, const char *remote_path, SmbError *o
 int smb_read_chunk(SmbFile *file, uint8_t *buf, uint32_t buf_size)
 {
 	int n = smb2_read(file->smb2, file->fh, buf, buf_size);
+	if (n < 0) fprintf(stderr, "[samba-sync] read failed: %s\n", smb2_get_error(file->smb2));
 	return n < 0 ? -1 : n;
 }
 

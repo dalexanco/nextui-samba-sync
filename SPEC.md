@@ -34,6 +34,10 @@ separates the two roles strictly:
   - missing locally → copied;
   - present with a different size → copied again (overwritten);
   - present with the same size → skipped.
+- **Hidden files are ignored on both sides**, with NextUI's own rule: names starting with a dot
+  (`.DS_Store`, macOS `._*` files…), `*.disabled`, `map.txt`. One exception: **`.media` folders are
+  synced**, since that is where NextUI looks for a ROM's box art. Dot-files inside them stay
+  ignored. In mirror mode, a local `.media` folder is therefore mirrored like any other.
 - **Add mode**: copies what is new or different, never deletes anything locally.
 - **Mirror mode**: additionally deletes, from the local folder, the files and subfolders absent from
   the remote folder. Deletion is strictly limited to the link's local folder. No confirmation

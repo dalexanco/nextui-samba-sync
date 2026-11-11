@@ -27,6 +27,14 @@ typedef struct {
 // buffer of at least BROWSE_STR_MAX bytes.
 void browse_path_push(char *out, const char *base, const char *name);
 
+// Whether a listing skips this entry. NextUI's hide() rule (dot-prefixed
+// names, *.disabled, map.txt), applied identically to both sides so they
+// stay comparable -- except for a ".media" folder: that is where NextUI
+// looks for a ROM's box art, so a link of ROMs is only complete with it.
+// Only the folder is let through; dot-files inside it (macOS "._*", our own
+// ".part") stay hidden.
+bool browse_hide(const char *name, bool is_dir);
+
 // Truncates path to its parent directory in place (removes the last "/"
 // segment). Returns false and leaves path untouched if it has no "/".
 bool browse_path_pop(char *path);

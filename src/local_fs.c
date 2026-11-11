@@ -31,7 +31,7 @@ static void localListRecurse(const char *dir_path, const char *rel_prefix,
 
 	struct dirent *entry;
 	while ((entry = readdir(dir))) {
-		if (hide(entry->d_name)) continue;
+		if (browse_hide(entry->d_name, entry->d_type == DT_DIR)) continue;
 
 		char child_path[BROWSE_STR_MAX];
 		browse_path_push(child_path, dir_path, entry->d_name);

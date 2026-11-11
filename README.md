@@ -54,6 +54,8 @@ link's detail**, its check, its last sync and, if any, the files that failed.
   wrong.
 - **Fast re-runs**: a file already present locally with the same size is
   skipped; only new or changed files are copied.
+- **Box art included**: hidden files (`.DS_Store`, `._*`…) are ignored, but
+  `.media` folders — where NextUI looks for box art — are synced.
 
 ## Supported devices
 

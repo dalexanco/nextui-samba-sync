@@ -1,7 +1,14 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "utils.h"
 #include "browse.h"
+
+bool browse_hide(const char *name, bool is_dir)
+{
+	if (is_dir && strcmp(name, ".media") == 0) return false;
+	return hide((char *)name);
+}
 
 void browse_path_push(char *out, const char *base, const char *name)
 {
